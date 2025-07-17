@@ -1,0 +1,8 @@
+langgraph
+langchain-core>=0.3.67
+langchain-community
+langchain-ollama
+pypdf
+tiktoken
+neo4j
+unstructured
