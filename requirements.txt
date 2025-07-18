@@ -6,3 +6,8 @@ pypdf
 tiktoken
 neo4j
 unstructured
+llama-index
+llama-index-vector-stores-elasticsearch
+requests
+typing-extensions
+pydantic

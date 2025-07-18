@@ -1,9 +1,9 @@
 from neo4j import GraphDatabase
 from typing import Dict, List
+from graph.config import NEO4J_URI, NEO4J_AUTH
 
 # 🔌 Neo4j connection (no auth needed)
-NEO4J_URI = "bolt://localhost:7687"
-driver = GraphDatabase.driver(NEO4J_URI, auth=None)
+driver = GraphDatabase.driver(NEO4J_URI, auth=NEO4J_AUTH)
 
 
 def insert_lo_kc_lp_im(data_list: list, parent_topic: str = "Operating Systems"):
@@ -145,7 +145,7 @@ def clear_plt_for_learner(learner_id: str, course_id: str = None):
         learner_id: The learner ID to clear data for
         course_id: Optional course ID to filter by (if None, clears all courses for learner)
     """
-    driver = GraphDatabase.driver("bolt://localhost:7687", auth=None)
+    driver = GraphDatabase.driver(NEO4J_URI, auth=NEO4J_AUTH)
     
     with driver.session() as session:
         if course_id:
@@ -260,7 +260,7 @@ def get_plt_for_learner(learner_id: str, course_id: str = None) -> list:
     Returns:
         List of dictionaries containing PLT step data
     """
-    driver = GraphDatabase.driver("bolt://localhost:7687", auth=None)
+    driver = GraphDatabase.driver(NEO4J_URI, auth=NEO4J_AUTH)
     
     with driver.session() as session:
         if course_id:
@@ -338,7 +338,7 @@ def insert_course_kg_to_neo4j(course_kg: dict):
     """
     from neo4j import GraphDatabase
 
-    driver = GraphDatabase.driver("bolt://localhost:7687", auth=None)
+    driver = GraphDatabase.driver(NEO4J_URI, auth=NEO4J_AUTH)
 
     def _create_course_kg(tx, course):
         course_id = course["course_id"]

@@ -1,0 +1,74 @@
+# LangGraph Knowledge Graph System Configuration
+
+# LLM Configuration
+llm:
+  default_model: "qwen3:4b"
+  alternative_model: "mistral"
+  
+# Database Configuration
+databases:
+  neo4j:
+    uri: "bolt://localhost:7687"
+    auth: null
+  elasticsearch:
+    endpoint: "http://localhost:9200"
+    index: "advanced_docs_elasticsearch_v2"
+    vector_store_dir: "./elasticsearch_storage_v2"
+  mongodb:
+    uri: "mongodb://localhost:27017"
+    database: "langgraph_kg"
+  postgresql:
+    host: "localhost"
+    port: 5432
+    database: "langgraph_kg"
+    user: "postgres"
+    password: null
+  redis:
+    host: "localhost"
+    port: 6379
+    db: 0
+
+# Course Configuration
+courses:
+  default_course_id: "OSN"
+  default_learner_id: "R000"
+
+# Microservice Configuration
+microservices:
+  course_manager:
+    enabled: true
+    timeout: 300
+  content_preprocessor:
+    enabled: true
+    chunk_size: 1000
+    chunk_overlap: 100
+  course_content_mapper:
+    enabled: true
+    agents: ["researcher", "lo_generator", "curator", "analyst", "kc_classifier"]
+  kli_application:
+    enabled: true
+    agents: ["lp_identifier", "instruction_agent"]
+  knowledge_graph_generator:
+    enabled: true
+    clear_existing: false
+  query_strategy_manager:
+    enabled: true
+  graph_query_engine:
+    enabled: true
+  learning_tree_handler:
+    enabled: true
+
+# Faculty Approval Workflow
+faculty_approval:
+  stages:
+    - "FACD"  # Faculty Approved Course Design
+    - "FCCS"  # Faculty Confirmed Course Structure
+    - "FFCS"  # Faculty Finalized Course Specification
+  require_approval: true
+
+# Paths
+paths:
+  prompts: "./prompts"
+  data: "./data"
+  uploads: "./uploads"
+  logs: "./logs" 

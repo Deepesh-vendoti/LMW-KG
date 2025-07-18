@@ -1,0 +1,244 @@
+# Docker Compose for Microservice Independent Databases
+# Each service gets its own database instance(s) for complete isolation
+
+version: '3.8'
+
+services:
+  
+  # ===========================================
+  # NEO4J INSTANCES (Separate per service)
+  # ===========================================
+  
+  # Course Content Mapper Database
+  neo4j-course-content:
+    image: neo4j:5.13
+    container_name: neo4j-course-content
+    ports:
+      - "7687:7687"
+      - "7474:7474"
+    environment:
+      - NEO4J_AUTH=none
+      - NEO4J_dbms_memory_heap_initial__size=512m
+      - NEO4J_dbms_memory_heap_max__size=1G
+    volumes:
+      - neo4j_course_content_data:/data
+    networks:
+      - course-content-network
+  
+  # KLI Application Database  
+  neo4j-kli-application:
+    image: neo4j:5.13
+    container_name: neo4j-kli-application
+    ports:
+      - "7688:7687"
+      - "7475:7474"
+    environment:
+      - NEO4J_AUTH=none
+      - NEO4J_dbms_memory_heap_initial__size=512m
+      - NEO4J_dbms_memory_heap_max__size=1G
+    volumes:
+      - neo4j_kli_data:/data
+    networks:
+      - kli-application-network
+  
+  # Knowledge Graph Generator Database
+  neo4j-kg-generator:
+    image: neo4j:5.13
+    container_name: neo4j-kg-generator
+    ports:
+      - "7689:7687"
+      - "7476:7474"
+    environment:
+      - NEO4J_AUTH=none
+      - NEO4J_dbms_memory_heap_initial__size=1G
+      - NEO4J_dbms_memory_heap_max__size=2G
+    volumes:
+      - neo4j_kg_generator_data:/data
+    networks:
+      - kg-generator-network
+  
+  # Graph Query Engine Database
+  neo4j-query-engine:
+    image: neo4j:5.13
+    container_name: neo4j-query-engine
+    ports:
+      - "7690:7687"
+      - "7477:7474"
+    environment:
+      - NEO4J_AUTH=none
+      - NEO4J_dbms_memory_heap_initial__size=512m
+      - NEO4J_dbms_memory_heap_max__size=1G
+    volumes:
+      - neo4j_query_engine_data:/data
+    networks:
+      - query-engine-network
+  
+  # ===========================================
+  # POSTGRESQL INSTANCES (Shared with separate schemas)
+  # ===========================================
+  
+  postgresql-main:
+    image: postgres:15
+    container_name: postgresql-main
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
+    volumes:
+      - postgresql_data:/var/lib/postgresql/data
+      - ./config/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql
+    networks:
+      - postgresql-network
+  
+  # ===========================================
+  # MONGODB INSTANCES (Separate per service)
+  # ===========================================
+  
+  # Content Preprocessor Database
+  mongodb-content-preprocessor:
+    image: mongo:7
+    container_name: mongodb-content-preprocessor
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_content_preprocessor_data:/data/db
+    networks:
+      - content-preprocessor-network
+  
+  # Knowledge Graph Generator Snapshots
+  mongodb-kg-snapshots:
+    image: mongo:7
+    container_name: mongodb-kg-snapshots
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongodb_kg_snapshots_data:/data/db
+    networks:
+      - kg-generator-network
+  
+  # ===========================================
+  # REDIS INSTANCES (Separate DBs per service)
+  # ===========================================
+  
+  redis-main:
+    image: redis:7
+    container_name: redis-main
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - redis-network
+  
+  # ===========================================
+  # SHARED INFRASTRUCTURE
+  # ===========================================
+  
+  # Elasticsearch (Shared for content indexing)
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: elasticsearch
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    networks:
+      - shared-infrastructure
+  
+  # ===========================================
+  # MONITORING & MANAGEMENT
+  # ===========================================
+  
+  # pgAdmin for PostgreSQL management
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin
+    ports:
+      - "5050:80"
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@langgraph-kg.com
+      - PGADMIN_DEFAULT_PASSWORD=admin
+    networks:
+      - postgresql-network
+  
+  # MongoDB Express for MongoDB management
+  mongo-express-content:
+    image: mongo-express
+    container_name: mongo-express-content
+    ports:
+      - "8081:8081"
+    environment:
+      - ME_CONFIG_MONGODB_SERVER=mongodb-content-preprocessor
+      - ME_CONFIG_MONGODB_PORT=27017
+      - ME_CONFIG_BASICAUTH_USERNAME=admin
+      - ME_CONFIG_BASICAUTH_PASSWORD=admin
+    depends_on:
+      - mongodb-content-preprocessor
+    networks:
+      - content-preprocessor-network
+  
+  # Redis Commander for Redis management
+  redis-commander:
+    image: rediscommander/redis-commander
+    container_name: redis-commander
+    ports:
+      - "8082:8081"
+    environment:
+      - REDIS_HOSTS=local:redis-main:6379
+    depends_on:
+      - redis-main
+    networks:
+      - redis-network
+
+# ===========================================
+# NETWORKS (Service isolation)
+# ===========================================
+
+networks:
+  course-content-network:
+    driver: bridge
+  kli-application-network:
+    driver: bridge
+  kg-generator-network:
+    driver: bridge
+  query-engine-network:
+    driver: bridge
+  content-preprocessor-network:
+    driver: bridge
+  postgresql-network:
+    driver: bridge
+  redis-network:
+    driver: bridge
+  shared-infrastructure:
+    driver: bridge
+
+# ===========================================
+# VOLUMES (Data persistence)
+# ===========================================
+
+volumes:
+  # Neo4j volumes
+  neo4j_course_content_data:
+  neo4j_kli_data:
+  neo4j_kg_generator_data:
+  neo4j_query_engine_data:
+  
+  # PostgreSQL volumes
+  postgresql_data:
+  
+  # MongoDB volumes
+  mongodb_content_preprocessor_data:
+  mongodb_kg_snapshots_data:
+  
+  # Redis volumes
+  redis_data:
+  
+  # Elasticsearch volumes
+  elasticsearch_data: 

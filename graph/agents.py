@@ -6,8 +6,8 @@ Uses shared OllamaLLM model (qwen3:4b)
 
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.runnables import RunnableLambda
-from langchain_ollama import OllamaLLM
 from graph.state import GraphState  # ✅ safe import
+from graph.config import get_llm
 
 
 # 📦 Utility: Load prompt text from a file
@@ -17,8 +17,7 @@ def load_prompt(filename: str) -> str:
 
 
 # 🤖 Shared Ollama model instance
-llm = OllamaLLM(model="qwen3:4b")
-# llm = OllamaLLM(model="mistral")
+llm = get_llm()
 
 
 # -------------------------------

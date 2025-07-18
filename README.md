@@ -9,6 +9,8 @@ A comprehensive knowledge graph system built with LangGraph and LangChain for pe
 - **Neo4j Integration**: Store and query knowledge graphs with complex relationships
 - **Course-Level Knowledge Graphs**: Full course structure with Learning Objectives → Knowledge Components → Instruction Methods → Resources
 - **KLI-Aware Processing**: Knowledge Component classification and Learning Process identification
+- **Elasticsearch Integration**: Transform existing ES chunks into knowledge graphs without re-chunking
+- **End-to-End Pipeline**: ES chunks → KG transformation → Neo4j insertion → PLT generation
 
 ## 🏗️ Architecture
 
@@ -20,6 +22,9 @@ A comprehensive knowledge graph system built with LangGraph and LangChain for pe
 
 ### PLT Generation Pipeline
 - Accept Learner Context → Prioritize LOs → Map KCs → Sequence KCs → Match IMs → Link Resources
+
+### ES to KG Pipeline
+- Load ES Chunks → Transform to KG Format → Insert into Neo4j → Generate PLT (optional)
 
 ## 📦 Installation
 
@@ -62,6 +67,18 @@ python main.py stage2
 python main.py plt
 ```
 
+### Elasticsearch to KG to PLT Pipeline
+```bash
+# Interactive mode
+python main.py es
+
+# Command-line mode with options
+python generate_kg_from_es.py --course_id OSN --learner_id R000 --generate_plt
+
+# Validate ES connection only
+python generate_kg_from_es.py --validate_only
+```
+
 ### Test PLT Generation
 ```bash
 python test_plt_clean.py
@@ -92,6 +109,7 @@ python test_plt_clean.py
 - `test_plt_clean.py`: PLT generation and Neo4j insertion
 - `test_generate_plt.py`: PLT generation workflow
 - `test_insert_os_data.py`: Knowledge graph insertion
+- `test_es_integration.py`: ES integration functionality
 
 ### Database Functions
 - `insert_plt_to_neo4j()`: Insert personalized learning trees
@@ -109,9 +127,13 @@ langgraph-kg/
 │   ├── db.py             # Neo4j database functions
 │   ├── graph.py          # LangGraph pipeline definitions
 │   ├── plt_generator.py  # PLT generation pipeline
+│   ├── utils/
+│   │   └── es_to_kg.py   # ES to KG transformation
 │   └── state.py          # State schemas
 ├── prompts/              # Agent prompt templates
 ├── main.py              # CLI runner
+├── generate_kg_from_es.py # ES to KG pipeline script
+├── test_es_integration.py # ES integration tests
 ├── requirements.txt     # Python dependencies
 └── README.md           # This file
 ```
@@ -126,6 +148,11 @@ langgraph-kg/
 ### LLM Configuration
 - **Model**: Ollama Qwen3:4b
 - **Endpoint**: Local Ollama instance
+
+### Elasticsearch Configuration
+- **Endpoint**: `http://localhost:9200`
+- **Index**: `advanced_docs_elasticsearch_v2`
+- **Vector Store Directory**: `./elasticsearch_storage_v2`
 
 ## 📈 Example Output
 
@@ -142,6 +169,59 @@ langgraph-kg/
 🧠 KC → IM relationships: 4
 📖 IM → Resource relationships: 4
 ```
+
+### ES to KG Pipeline
+```
+🚀 ES to KG to PLT Pipeline
+==================================================
+1️⃣ Validating Elasticsearch connection...
+✅ Elasticsearch connection and index 'advanced_docs_elasticsearch_v2' validated
+📊 Found 150 chunks in Elasticsearch index 'advanced_docs_elasticsearch_v2'
+
+2️⃣ Transforming ES chunks to KG format...
+🔄 Loading ES chunks from http://localhost:9200/advanced_docs_elasticsearch_v2
+📚 Found 150 chunks in Elasticsearch
+✅ Transformed 150 chunks into 25 learning objectives
+📊 Total knowledge components: 150
+
+3️⃣ Inserting KG into Neo4j...
+✅ Knowledge Graph successfully inserted into Neo4j
+
+4️⃣ Generating Personalized Learning Tree for R000...
+✅ Personalized Learning Tree generated successfully!
+📊 Generated 15 learning steps
+
+🎉 Pipeline completed successfully!
+📚 Course: OSN
+📊 Learning Objectives: 25
+🧠 Knowledge Components: 150
+👤 PLT generated for learner: R000
+```
+
+## 🔄 Elasticsearch Integration Workflow
+
+### Prerequisites
+1. **Elasticsearch Running**: Ensure ES is accessible at `http://localhost:9200`
+2. **Index Exists**: Your ES index should contain chunked documents
+3. **Vector Store Data**: LlamaIndex vector store directory should be present
+
+### Workflow Steps
+1. **Validation**: Check ES connection and chunk count
+2. **Transformation**: Convert ES chunks to internal KG format
+3. **Insertion**: Load full KG into Neo4j
+4. **PLT Generation**: Create personalized learning trees (optional)
+
+### Configuration Options
+- **Course ID**: Customize course identifier (default: "OSN")
+- **Learner ID**: Specify target learner for PLT (default: "R000")
+- **ES Settings**: Configure endpoint, index, and vector store directory
+- **Clear Existing**: Option to clear existing KG data before insertion
+
+### Error Handling
+- Graceful handling of ES connection failures
+- Validation of chunk count before processing
+- Fallback to empty structure if transformation fails
+- Detailed error messages for troubleshooting
 
 ## 🤝 Contributing
 

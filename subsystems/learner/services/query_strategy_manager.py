@@ -1,0 +1,128 @@
+"""
+Query Strategy Manager Service - Learner Subsystem
+
+Handles learner decision routing and query strategy optimization.
+Follows wrapper pattern: delegates to core logic in graph/
+"""
+
+from typing import Dict, Any, Optional
+import logging
+from orchestrator.state import UniversalState, ServiceStatus, SubsystemType
+
+logger = logging.getLogger(__name__)
+
+class QueryStrategyManagerService:
+    """
+    Microservice for managing learner query strategies and decision routing.
+    
+    Responsibilities:
+    - Route learner queries based on context and decision trees
+    - Optimize query strategies for different learner types
+    - Handle adaptive query routing based on learner performance
+    - Manage query complexity and difficulty adaptation
+    
+    Architecture: Thin wrapper around graph/query_strategy.py
+    """
+    
+    def __init__(self):
+        self.service_id = "query_strategy_manager"
+        self.subsystem = SubsystemType.LEARNER
+        
+    def __call__(self, state: UniversalState) -> UniversalState:
+        """
+        Main entry point for query strategy management.
+        Compatible with LangGraph orchestrator.
+        """
+        print(f"🎯 [Query Strategy Manager] Processing query strategy...")
+        
+        try:
+            # Extract context for strategy decision
+            learner_id = state.get("learner_id")
+            learner_context = state.get("learner_context", {})
+            query_type = state.get("query_type", "standard")
+            
+            if not learner_id:
+                raise ValueError("Learner ID is required for query strategy management")
+            
+            # Delegate to core business logic in graph/
+            strategy_result = self._determine_query_strategy(
+                learner_id=learner_id,
+                learner_context=learner_context,
+                query_type=query_type
+            )
+            
+            # Update state with strategy results
+            state.update({
+                "query_strategy_manager_result": strategy_result,
+                "query_strategy": strategy_result.get("strategy", "standard"),
+                "query_complexity": strategy_result.get("complexity", "medium"),
+                "service_status": ServiceStatus.COMPLETED,
+                "last_service": self.service_id
+            })
+            
+            print(f"✅ Query strategy '{strategy_result.get('strategy')}' determined for {learner_id}")
+            
+            return state
+            
+        except Exception as e:
+            logger.error(f"Query Strategy Manager error: {e}")
+            state.update({
+                "service_status": ServiceStatus.FAILED,
+                "error": str(e),
+                "last_service": self.service_id
+            })
+            return state
+    
+    def _determine_query_strategy(self, learner_id: str, learner_context: Dict[str, Any], 
+                                query_type: str) -> Dict[str, Any]:
+        """Determine optimal query strategy using core logic."""
+        try:
+            # Import core query strategy logic from graph/
+            from graph.query_strategy import determine_query_strategy
+            
+            print("🔄 Delegating to core query strategy logic...")
+            return determine_query_strategy(learner_id, learner_context, query_type)
+            
+        except ImportError:
+            # Fallback implementation until graph/query_strategy.py is created
+            print("⚠️ Using fallback query strategy logic (core logic not yet implemented)")
+            
+            # Simple strategy based on learner context
+            decision_label = learner_context.get("decision_label", "Standard Learner")
+            experience_level = learner_context.get("experience_level", "intermediate")
+            
+            # Basic strategy mapping
+            if "Advanced" in decision_label or experience_level == "advanced":
+                strategy = "complex_queries"
+                complexity = "high"
+            elif "Beginner" in decision_label or experience_level == "beginner":
+                strategy = "guided_queries"
+                complexity = "low"
+            else:
+                strategy = "adaptive_queries"
+                complexity = "medium"
+            
+            return {
+                "learner_id": learner_id,
+                "strategy": strategy,
+                "complexity": complexity,
+                "query_type": query_type,
+                "decision_factors": {
+                    "decision_label": decision_label,
+                    "experience_level": experience_level
+                },
+                "recommended_actions": [
+                    f"Use {strategy} approach",
+                    f"Set complexity to {complexity}",
+                    "Monitor learner performance"
+                ]
+            }
+
+
+def create_query_strategy_manager_service():
+    """Factory function to create QueryStrategyManagerService instance."""
+    return QueryStrategyManagerService()
+
+
+# Service instance for orchestrator registration
+query_strategy_manager_service = create_query_strategy_manager_service() 

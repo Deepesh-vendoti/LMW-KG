@@ -4,11 +4,11 @@ Specialized agents for generating personalized learning paths
 """
 
 from langchain_core.runnables import RunnableLambda
-from langchain_ollama import OllamaLLM
 from graph.db import get_kcs_under_lo, get_best_im_for_kc_lp
+from graph.config import get_llm
 
 # 🤖 Shared Ollama model instance
-llm = OllamaLLM(model="qwen3:4b")
+llm = get_llm()
 
 # -------------------------------
 # 🎯 AGENT 1: Accept Learner Context

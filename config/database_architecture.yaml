@@ -1,0 +1,189 @@
+# Database-per-Microservice Architecture Configuration
+# Each microservice has its own dedicated database(s) for complete independence
+
+# ===========================================
+# MICROSERVICE DATABASE ASSIGNMENTS
+# ===========================================
+
+microservice_databases:
+  
+  # 1. Course Manager - File metadata, upload tracking, faculty management
+  course_manager:
+    primary_db: "postgresql"
+    databases:
+      postgresql:
+        host: "localhost"
+        port: 5432
+        database: "course_manager_db"
+        user: "course_manager_user"
+        password: null
+        tables: ["courses", "uploads", "faculty", "approval_workflows"]
+    
+  # 2. Content Preprocessor - Document storage, chunks, metadata
+  content_preprocessor:
+    primary_db: "mongodb"
+    databases:
+      mongodb:
+        uri: "mongodb://localhost:27017"
+        database: "content_preprocessor_db"
+        collections: ["documents", "chunks", "metadata", "processing_logs"]
+  
+  # 3. Course Content Mapper (Stage 1) - Learning objectives, knowledge components
+  course_content_mapper:
+    primary_db: "neo4j"
+    databases:
+      neo4j:
+        uri: "bolt://localhost:7687"
+        database: "course_content_db"
+        auth: null
+        node_types: ["LearningObjective", "KnowledgeComponent", "ConceptRelation"]
+  
+  # 4. KLI Application (Stage 2) - Learning processes, instruction methods
+  kli_application:
+    primary_db: "neo4j"
+    databases:
+      neo4j:
+        uri: "bolt://localhost:7688"  # Different port for isolation
+        database: "kli_application_db"
+        auth: null
+        node_types: ["LearningProcess", "InstructionMethod", "KLIRelation"]
+  
+  # 5. Knowledge Graph Generator - Final knowledge graphs, multi-db outputs
+  knowledge_graph_generator:
+    primary_db: "neo4j"
+    databases:
+      neo4j:
+        uri: "bolt://localhost:7689"
+        database: "knowledge_graph_db"
+        auth: null
+        node_types: ["Course", "LearningObjective", "KnowledgeComponent", "InstructionMethod", "Resource"]
+      mongodb:
+        uri: "mongodb://localhost:27017"
+        database: "kg_snapshots_db"
+        collections: ["course_snapshots", "kg_versions", "export_logs"]
+      postgresql:
+        host: "localhost"
+        port: 5432
+        database: "kg_metadata_db"
+        user: "kg_user"
+        password: null
+        tables: ["kg_metadata", "version_control", "faculty_approvals"]
+  
+  # 6. Query Strategy Manager - Learner context, decision routing
+  query_strategy_manager:
+    primary_db: "redis"
+    databases:
+      redis:
+        host: "localhost"
+        port: 6379
+        db: 1  # Different Redis DB
+        keys: ["learner_context", "decision_cache", "routing_rules"]
+      postgresql:
+        host: "localhost"
+        port: 5432
+        database: "query_strategy_db"
+        user: "query_user"
+        password: null
+        tables: ["learners", "strategies", "decision_logs"]
+  
+  # 7. Graph Query Engine - Cypher queries, query results
+  graph_query_engine:
+    primary_db: "neo4j"
+    databases:
+      neo4j:
+        uri: "bolt://localhost:7690"
+        database: "query_engine_db"
+        auth: null
+        node_types: ["QueryResult", "SubGraph", "QueryMetrics"]
+      postgresql:
+        host: "localhost"
+        port: 5432
+        database: "query_logs_db"
+        user: "query_logs_user"
+        password: null
+        tables: ["query_history", "performance_metrics", "cached_results"]
+  
+  # 8. Learning Tree Handler - Personalized learning trees, PLT storage
+  learning_tree_handler:
+    primary_db: "redis"
+    databases:
+      redis:
+        host: "localhost"
+        port: 6379
+        db: 2  # Different Redis DB
+        keys: ["active_plts", "learner_progress", "tree_cache"]
+      postgresql:
+        host: "localhost"
+        port: 5432
+        database: "plt_storage_db"
+        user: "plt_user"
+        password: null
+        tables: ["personalized_trees", "learning_paths", "progress_tracking"]
+
+# ===========================================
+# SHARED INFRASTRUCTURE DATABASES
+# ===========================================
+
+shared_infrastructure:
+  
+  # Elasticsearch - Content search and indexing (shared)
+  elasticsearch:
+    endpoint: "http://localhost:9200"
+    indices:
+      - "course_content_index"
+      - "search_logs_index"
+      - "analytics_index"
+  
+  # System Configuration Database (shared)
+  system_config:
+    postgresql:
+      host: "localhost"
+      port: 5432
+      database: "system_config_db"
+      user: "system_admin"
+      password: null
+      tables: ["global_config", "feature_flags", "system_logs"]
+
+# ===========================================
+# DATABASE ISOLATION STRATEGIES
+# ===========================================
+
+isolation_strategies:
+  
+  # Network isolation
+  network:
+    service_specific_ports: true
+    firewall_rules: true
+    vpc_separation: false  # For local development
+  
+  # Data isolation
+  data:
+    separate_schemas: true
+    separate_users: true
+    separate_permissions: true
+    cross_service_queries: false
+  
+  # Service communication
+  communication:
+    method: "api_only"  # No direct database access between services
+    event_streaming: false  # Could add Kafka/RabbitMQ later
+    shared_cache: "redis_central"  # Optional shared cache
+
+# ===========================================
+# DEPLOYMENT CONFIGURATIONS
+# ===========================================
+
+deployment:
+  
+  # Local Development
+  local:
+    use_docker_compose: true
+    shared_infrastructure: true
+    resource_limits: false
+  
+  # Production
+  production:
+    use_kubernetes: true
+    database_clustering: true
+    backup_strategies: true
+    monitoring: true 

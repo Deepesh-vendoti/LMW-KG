@@ -1,0 +1,94 @@
+Memory Management in Operating Systems
+
+Memory management is a critical function of operating systems that handles the allocation and deallocation of memory space to processes.
+
+1. Memory Hierarchy
+
+Modern computer systems use a hierarchical memory structure:
+- CPU Registers: Fastest, smallest capacity
+- Cache Memory: Fast, moderate capacity
+- Main Memory (RAM): Moderate speed, large capacity
+- Secondary Storage: Slowest, largest capacity
+
+2. Contiguous Memory Allocation
+
+In contiguous allocation, each process is contained in a single continuous section of memory.
+
+Advantages:
+- Simple to implement
+- Easy to calculate memory addresses
+- Efficient memory access
+
+Disadvantages:
+- External fragmentation
+- Memory compaction required
+- Fixed partition size limitations
+
+3. Paging
+
+Paging divides physical memory into fixed-size blocks called frames and logical memory into blocks of the same size called pages.
+
+Key Concepts:
+- Page Table: Maps logical addresses to physical addresses
+- Page Fault: Occurs when a page is not in memory
+- Page Replacement: Algorithm to decide which page to replace
+- Translation Lookaside Buffer (TLB): Cache for page table entries
+
+4. Segmentation
+
+Segmentation divides memory into variable-sized segments based on logical structure.
+
+Characteristics:
+- Segments can grow and shrink
+- Better memory utilization than fixed partitions
+- Supports sharing and protection
+- Can lead to external fragmentation
+
+5. Virtual Memory
+
+Virtual memory allows processes to use more memory than physically available.
+
+Benefits:
+- Increased memory capacity
+- Memory protection
+- Process isolation
+- Efficient memory sharing
+
+Components:
+- Demand Paging: Load pages only when needed
+- Page Replacement: Algorithms like LRU, FIFO, Optimal
+- Working Set: Set of pages currently in use
+- Thrashing: Excessive page faults due to insufficient frames
+
+6. Page Replacement Algorithms
+
+First-In-First-Out (FIFO):
+- Replaces the oldest page
+- Simple to implement
+- May replace frequently used pages
+
+Least Recently Used (LRU):
+- Replaces the least recently used page
+- Good performance
+- Requires tracking page usage
+
+Optimal Algorithm:
+- Replaces the page that won't be used for the longest time
+- Theoretical algorithm
+- Used as a benchmark
+
+7. Memory Protection
+
+Memory protection mechanisms include:
+- Base and Limit Registers: Define memory boundaries
+- Read/Write Protection: Control access permissions
+- Execute Protection: Prevent code execution in data areas
+- Address Space Layout Randomization (ASLR): Security feature
+
+8. Memory Allocation Strategies
+
+First Fit: Allocate the first hole that is big enough
+Best Fit: Allocate the smallest hole that is big enough
+Worst Fit: Allocate the largest hole available
+
+Each strategy has different trade-offs in terms of fragmentation and allocation speed. 

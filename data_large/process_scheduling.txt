@@ -1,0 +1,76 @@
+Process Scheduling Algorithms
+
+Process scheduling is a fundamental component of operating systems that determines which process runs when. The scheduler must balance efficiency, fairness, and responsiveness.
+
+1. First-Come, First-Served (FCFS)
+
+FCFS is the simplest scheduling algorithm where processes are executed in the order they arrive.
+
+Characteristics:
+- Non-preemptive: Once a process starts, it runs to completion
+- Simple to implement and understand
+- Can lead to convoy effect (short processes waiting behind long ones)
+- Average waiting time can be high
+
+Example: Process A (10ms), Process B (5ms), Process C (8ms)
+Execution order: A → B → C
+Total time: 23ms
+
+2. Shortest Job First (SJF)
+
+SJF schedules processes based on their burst time, with shorter jobs getting priority.
+
+Characteristics:
+- Can be preemptive (SJF) or non-preemptive (SJN)
+- Minimizes average waiting time
+- Requires knowledge of process burst times
+- Can cause starvation for longer processes
+
+3. Round Robin (RR)
+
+Round Robin assigns a fixed time quantum to each process in a circular manner.
+
+Characteristics:
+- Preemptive scheduling
+- Fair to all processes
+- Good for time-sharing systems
+- Performance depends on time quantum size
+- No starvation
+
+4. Priority Scheduling
+
+Priority scheduling assigns priorities to processes and executes higher priority processes first.
+
+Characteristics:
+- Can be preemptive or non-preemptive
+- Allows for process prioritization
+- Can cause priority inversion
+- May lead to starvation of low-priority processes
+
+5. Multi-Level Queue Scheduling
+
+This algorithm uses multiple queues with different priorities and scheduling algorithms.
+
+Characteristics:
+- Processes are permanently assigned to queues
+- Higher priority queues are served first
+- Different scheduling algorithms per queue
+- Can be complex to implement
+
+6. Multi-Level Feedback Queue
+
+Similar to multi-level queue but allows processes to move between queues.
+
+Characteristics:
+- Processes can change priority levels
+- Prevents starvation
+- More complex than simple algorithms
+- Adapts to process behavior
+
+Performance Metrics:
+
+- Turnaround Time: Total time from arrival to completion
+- Waiting Time: Total time spent waiting in ready queue
+- Response Time: Time from request to first response
+- CPU Utilization: Percentage of time CPU is busy
+- Throughput: Number of processes completed per time unit 

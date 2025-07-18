@@ -1,8 +1,8 @@
 # Connect to Neo4j
 from neo4j import GraphDatabase
+from graph.config import NEO4J_URI, NEO4J_AUTH
 
-NEO4J_URI = "bolt://localhost:7687"
-driver = GraphDatabase.driver(NEO4J_URI, auth=None)
+driver = GraphDatabase.driver(NEO4J_URI, auth=NEO4J_AUTH)
 
 def insert_course(course_id: str, course_name: str):
     """
