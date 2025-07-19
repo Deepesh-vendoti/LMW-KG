@@ -26,24 +26,23 @@ class LearningTreeHandlerService:
         self.service_id = "learning_tree_handler"
         self.subsystem = SubsystemType.LEARNER
         
-    def __call__(self, state: UniversalState) -> UniversalState:
-        """
-        Main entry point for learning tree handling.
-        Compatible with LangGraph orchestrator.
-        """
-        print(f"🌳 [Learning Tree Handler] Generating personalized learning tree...")
-        
+    def __call__(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute learning tree generation with personalized recommendations."""
         try:
-            # Extract learner context
+            # Extract required inputs
             learner_id = state.get("learner_id")
             course_id = state.get("course_id")
             learner_profile = state.get("learner_profile", {})
+            query_strategy = state.get("query_strategy", {})  # From Query Strategy Manager
+            query_results = state.get("query_results", {})   # From Graph Query Engine
             
             if not learner_id or not course_id:
                 raise ValueError("Learner ID and Course ID are required")
             
-            # Generate PLT using existing PLT generator
-            plt_result = self._generate_plt(learner_id, course_id, learner_profile)
+            # Generate PLT using strategy and query results
+            plt_result = self._generate_plt_with_strategy(
+                learner_id, course_id, learner_profile, query_strategy, query_results
+            )
             
             # Store PLT in databases
             storage_result = self._store_plt(plt_result, learner_id, course_id)
@@ -84,6 +83,72 @@ class LearningTreeHandlerService:
             state["service_errors"][self.service_id] = str(e)
             
             return state
+    
+    def _generate_plt_with_strategy(self, learner_id: str, course_id: str, 
+                                   learner_profile: Dict[str, Any], 
+                                   query_strategy: Dict[str, Any], 
+                                   query_results: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate personalized learning tree using query strategy and results."""
+        try:
+            print("🔄 Generating PLT with adaptive strategy...")
+            
+            # Import legacy PLT generator and agents
+            from graph.plt_generator import run_plt_generator
+            
+            # Run PLT generation - this uses the existing 6 PLT agents
+            plt_result = run_plt_generator()
+            
+            # Extract the final PLT
+            final_plt = plt_result.get("final_plt", {})
+            
+            # Apply query strategy for personalization
+            personalization_strategy = query_strategy.get('personalization_strategy', {})
+            learner_type = personalization_strategy.get('learner_type', 'visual')
+            intervention_strategy = personalization_strategy.get('intervention_strategy', 'scaffolding')
+            delivery_strategy = personalization_strategy.get('delivery_strategy', 'interactive')
+            
+            # Enhance PLT with query results and strategy
+            enhanced_plt = {
+                "learner_id": learner_id,
+                "course_id": course_id,
+                "learner_profile": learner_profile,
+                "query_strategy": query_strategy,
+                "query_results": query_results,
+                "learning_path": final_plt.get("learning_path", []),
+                "priority_weights": final_plt.get("priority_weights", {}),
+                "sequencing_metadata": final_plt.get("sequencing_metadata", {}),
+                "personalization": {
+                    "learner_type": learner_type,
+                    "intervention_strategy": intervention_strategy,
+                    "delivery_strategy": delivery_strategy,
+                    "adaptive_features": self._extract_adaptive_features(query_results)
+                },
+                "generated_at": plt_result.get("timestamp", "unknown")
+            }
+            
+            return enhanced_plt
+            
+        except Exception as e:
+            raise Exception(f"PLT generation with strategy failed: {e}")
+    
+    def _extract_adaptive_features(self, query_results: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract adaptive features from query results."""
+        features = {
+            "content_adaptation": [],
+            "difficulty_progression": [],
+            "interaction_patterns": []
+        }
+        
+        # Extract features from query results
+        if "knowledge_graph_data" in query_results:
+            kg_data = query_results["knowledge_graph_data"]
+            features["content_adaptation"] = kg_data.get("concepts", [])
+            features["difficulty_progression"] = kg_data.get("difficulty_levels", [])
+        
+        if "interaction_data" in query_results:
+            features["interaction_patterns"] = query_results["interaction_data"]
+        
+        return features
     
     def _generate_plt(self, learner_id: str, course_id: str, learner_profile: Dict[str, Any]) -> Dict[str, Any]:
         """Generate personalized learning tree using existing PLT generator."""
@@ -182,8 +247,8 @@ class LearningTreeHandlerService:
             subsystem=self.subsystem,
             name="Learning Tree Handler",
             description="Generates and stores personalized learning trees with adaptive recommendations",
-            dependencies=["content_preprocessor"],  # Needs content to be processed first
-            required_inputs=["learner_id", "course_id"],
+            dependencies=["query_strategy_manager", "graph_query_engine"],  # Depends on strategy and query results
+            required_inputs=["learner_id", "course_id", "query_strategy", "query_results"],
             provided_outputs=["personalized_learning_tree", "adaptive_recommendations"],
             callable=self,
             timeout_seconds=600  # PLT generation can take longer

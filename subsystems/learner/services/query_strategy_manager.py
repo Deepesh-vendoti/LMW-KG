@@ -54,7 +54,17 @@ class QueryStrategyManagerService:
             # Update state with strategy results
             state.update({
                 "query_strategy_manager_result": strategy_result,
-                "query_strategy": strategy_result.get("strategy", "standard"),
+                "query_strategy": {
+                    "strategy": strategy_result.get("strategy", "standard"),
+                    "complexity": strategy_result.get("complexity", "medium"),
+                    "personalization_strategy": {
+                        "learner_type": learner_context.get("learning_style", "visual"),
+                        "intervention_strategy": "scaffolding" if "Beginner" in learner_context.get("decision_label", "") else "examples",
+                        "delivery_strategy": "interactive"
+                    },
+                    "decision_factors": strategy_result.get("decision_factors", {}),
+                    "recommended_actions": strategy_result.get("recommended_actions", [])
+                },
                 "query_complexity": strategy_result.get("complexity", "medium"),
                 "service_status": ServiceStatus.COMPLETED,
                 "last_service": self.service_id
@@ -117,6 +127,22 @@ class QueryStrategyManagerService:
                     "Monitor learner performance"
                 ]
             }
+
+    def get_service_definition(self):
+        """Get service definition for registration."""
+        from orchestrator.state import ServiceDefinition
+        
+        return ServiceDefinition(
+            service_id=self.service_id,
+            subsystem=self.subsystem,
+            name="Query Strategy Manager",
+            description="Manages learner query strategies and decision routing based on learner context",
+            dependencies=[],  # No dependencies - can be entry point
+            required_inputs=["learner_id", "learner_context"],
+            provided_outputs=["query_strategy", "query_complexity", "query_strategy_manager_result"],
+            callable=self,
+            timeout_seconds=60  # Quick strategy decisions
+        )
 
 
 def create_query_strategy_manager_service():

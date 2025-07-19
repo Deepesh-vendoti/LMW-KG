@@ -2,45 +2,35 @@
 -- Creates separate databases and users for each microservice
 
 -- ===========================================
--- CREATE DATABASES
+-- CREATE DATABASES (NO AUTHENTICATION REQUIRED)
 -- ===========================================
 
--- Course Manager Database
-CREATE DATABASE course_manager_db;
-CREATE USER course_manager_user WITH PASSWORD 'course_manager_pass';
-GRANT ALL PRIVILEGES ON DATABASE course_manager_db TO course_manager_user;
+-- Course Manager Database (Main PostgreSQL container)
+-- Database: lmw_mvp_course_manager (set in Docker environment)
+-- No users/passwords needed - using trust authentication
 
--- Knowledge Graph Metadata Database
-CREATE DATABASE kg_metadata_db;
-CREATE USER kg_user WITH PASSWORD 'kg_user_pass';
-GRANT ALL PRIVILEGES ON DATABASE kg_metadata_db TO kg_user;
+-- Query Strategy Database (Separate container)
+-- Database: lmw_mvp_query_strategy (set in Docker environment)
+-- No users/passwords needed - using trust authentication
 
--- Query Strategy Database
-CREATE DATABASE query_strategy_db;
-CREATE USER query_user WITH PASSWORD 'query_user_pass';
-GRANT ALL PRIVILEGES ON DATABASE query_strategy_db TO query_user;
+-- Graph Query Database (Separate container)
+-- Database: lmw_mvp_graph_query (set in Docker environment)
+-- No users/passwords needed - using trust authentication
 
--- Query Logs Database
-CREATE DATABASE query_logs_db;
-CREATE USER query_logs_user WITH PASSWORD 'query_logs_pass';
-GRANT ALL PRIVILEGES ON DATABASE query_logs_db TO query_logs_user;
+-- Learning Tree Database (Separate container)
+-- Database: lmw_mvp_learning_tree (set in Docker environment)
+-- No users/passwords needed - using trust authentication
 
--- PLT Storage Database
-CREATE DATABASE plt_storage_db;
-CREATE USER plt_user WITH PASSWORD 'plt_user_pass';
-GRANT ALL PRIVILEGES ON DATABASE plt_storage_db TO plt_user;
-
--- System Configuration Database
-CREATE DATABASE system_config_db;
-CREATE USER system_admin WITH PASSWORD 'system_admin_pass';
-GRANT ALL PRIVILEGES ON DATABASE system_config_db TO system_admin;
+-- System Configuration Database (Separate container)
+-- Database: lmw_mvp_system_config (set in Docker environment)
+-- No users/passwords needed - using trust authentication
 
 -- ===========================================
--- INITIALIZE SCHEMAS
+-- INITIALIZE SCHEMAS (NO AUTHENTICATION REQUIRED)
 -- ===========================================
 
--- Connect to course_manager_db and create tables
-\c course_manager_db;
+-- Connect to lmw_mvp_course_manager and create tables
+-- (Database name is set in Docker environment)
 
 CREATE TABLE IF NOT EXISTS courses (
     course_id VARCHAR(50) PRIMARY KEY,
@@ -79,12 +69,8 @@ CREATE TABLE IF NOT EXISTS approval_workflows (
     comments TEXT
 );
 
--- Grant permissions
-GRANT ALL ON ALL TABLES IN SCHEMA public TO course_manager_user;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO course_manager_user;
-
 -- Connect to kg_metadata_db and create tables
-\c kg_metadata_db;
+-- (This will be handled by the main course manager database)
 
 CREATE TABLE IF NOT EXISTS kg_metadata (
     kg_id SERIAL PRIMARY KEY,
@@ -114,12 +100,7 @@ CREATE TABLE IF NOT EXISTS faculty_approvals (
     comments TEXT
 );
 
--- Grant permissions
-GRANT ALL ON ALL TABLES IN SCHEMA public TO kg_user;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO kg_user;
-
--- Connect to query_strategy_db and create tables
-\c query_strategy_db;
+-- (Query strategy tables will be in separate container)
 
 CREATE TABLE IF NOT EXISTS learners (
     learner_id VARCHAR(50) PRIMARY KEY,

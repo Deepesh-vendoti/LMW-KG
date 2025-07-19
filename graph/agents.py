@@ -4,16 +4,25 @@ Each agent loads its prompt from the prompts/ folder
 Uses shared OllamaLLM model (qwen3:4b)
 """
 
+import os
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.runnables import RunnableLambda
 from graph.state import GraphState  # ✅ safe import
-from graph.config import get_llm
+from graph.config import get_llm, get_llm_gateway
+from utils.llm_gateway import TaskType
 
 
 # 📦 Utility: Load prompt text from a file
 def load_prompt(filename: str) -> str:
-    with open(f"prompts/{filename}", "r") as f:
-        return f.read()
+    # Check if file exists in stage1 directory first
+    stage1_path = f"prompts/stage1/{filename}"
+    if os.path.exists(stage1_path):
+        with open(stage1_path, "r") as f:
+            return f.read()
+    else:
+        # Fallback to direct prompts directory
+        with open(f"prompts/{filename}", "r") as f:
+            return f.read()
 
 
 # 🤖 Shared Ollama model instance
@@ -29,8 +38,34 @@ def create_researcher_agent():
         print("🔍 [Researcher Agent] Executing...")
         if state.messages:
             query = state.messages[-1].content
-            response = llm.invoke(prompt + query)
-            state.messages.append(AIMessage(content=response))
+            
+            # Use LLM Gateway for knowledge extraction with cost optimization
+            try:
+                gateway = get_llm_gateway()
+                if hasattr(gateway, 'generate'):
+                    # Use LLM Gateway for advanced knowledge extraction
+                    response = gateway.generate(
+                        task_type=TaskType.KNOWLEDGE_EXTRACTION,
+                        prompt=prompt + query,
+                        constraints={
+                            "max_cost": 0.08,
+                            "privacy_requirement": "local",
+                            "max_latency_ms": 5000
+                        }
+                    )
+                    content = response["content"]
+                    print(f"✅ [Researcher] Used LLM Gateway ({response['model_used']}) - Cost: ${response['cost']:.4f}")
+                else:
+                    # Fallback to basic LLM
+                    response = llm.invoke(prompt + query)
+                    content = response
+                    print("⚠️ [Researcher] Used fallback LLM")
+            except Exception as e:
+                print(f"⚠️ [Researcher] LLM Gateway failed, using fallback: {e}")
+                response = llm.invoke(prompt + query)
+                content = response
+            
+            state.messages.append(AIMessage(content=content))
         return state
     return RunnableLambda(researcher)
 
@@ -44,8 +79,34 @@ def create_lo_generator_agent():
         print("📝 [LO Generator Agent] Executing...")
         if state.messages:
             query = state.messages[-1].content
-            response = llm.invoke(prompt + query)
-            state.messages.append(AIMessage(content=response))
+            
+            # Use LLM Gateway for learning objective generation
+            try:
+                gateway = get_llm_gateway()
+                if hasattr(gateway, 'generate'):
+                    # Use LLM Gateway for learning objective generation
+                    response = gateway.generate(
+                        task_type=TaskType.LEARNING_OBJECTIVE_GENERATION,
+                        prompt=prompt + query,
+                        constraints={
+                            "max_cost": 0.10,
+                            "privacy_requirement": "local",
+                            "max_latency_ms": 6000
+                        }
+                    )
+                    content = response["content"]
+                    print(f"✅ [LO Generator] Used LLM Gateway ({response['model_used']}) - Cost: ${response['cost']:.4f}")
+                else:
+                    # Fallback to basic LLM
+                    response = llm.invoke(prompt + query)
+                    content = response
+                    print("⚠️ [LO Generator] Used fallback LLM")
+            except Exception as e:
+                print(f"⚠️ [LO Generator] LLM Gateway failed, using fallback: {e}")
+                response = llm.invoke(prompt + query)
+                content = response
+            
+            state.messages.append(AIMessage(content=content))
         return state
     return RunnableLambda(lo_generator)
 
@@ -119,7 +180,33 @@ def create_instruction_agent():
         print("🎯 [Instruction Strategy Agent] Executing...")
         if state.messages:
             query = state.messages[-1].content
-            response = llm.invoke(prompt + query)
-            state.messages.append(AIMessage(content=response))
+            
+            # Use LLM Gateway for instruction method selection
+            try:
+                gateway = get_llm_gateway()
+                if hasattr(gateway, 'generate'):
+                    # Use LLM Gateway for instruction method selection
+                    response = gateway.generate(
+                        task_type=TaskType.INSTRUCTION_METHOD_SELECTION,
+                        prompt=prompt + query,
+                        constraints={
+                            "max_cost": 0.08,
+                            "privacy_requirement": "local",
+                            "max_latency_ms": 4000
+                        }
+                    )
+                    content = response["content"]
+                    print(f"✅ [Instruction Agent] Used LLM Gateway ({response['model_used']}) - Cost: ${response['cost']:.4f}")
+                else:
+                    # Fallback to basic LLM
+                    response = llm.invoke(prompt + query)
+                    content = response
+                    print("⚠️ [Instruction Agent] Used fallback LLM")
+            except Exception as e:
+                print(f"⚠️ [Instruction Agent] LLM Gateway failed, using fallback: {e}")
+                response = llm.invoke(prompt + query)
+                content = response
+            
+            state.messages.append(AIMessage(content=content))
         return state
     return RunnableLambda(instruction_agent)

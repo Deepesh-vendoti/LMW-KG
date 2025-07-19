@@ -1,0 +1,239 @@
+version: '3.8'
+
+services:
+  # ===============================
+  # MONGODB - Document Storage (for Content Preprocessor, KG Generator)
+  # ===============================
+  mongodb:
+    image: mongo:7.0
+    container_name: LMW-MVP-content-preprocessor-document-storage
+    ports:
+      - "27017:27017"
+    command: mongod --noauth
+    volumes:
+      - mongodb_data:/data/db
+      - ./config/init-mongodb.js:/docker-entrypoint-initdb.d/init-mongodb.js:ro
+    restart: unless-stopped
+    networks:
+      - langgraph_network
+
+  # ===============================
+  # POSTGRESQL - Structured Data & Faculty Approvals (for Course Manager, KG Generator)
+  # ===============================
+  postgresql:
+    image: postgres:15
+    container_name: LMW-MVP-course-manager-metadata-approvals
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=lmw_mvp_course_manager
+      - POSTGRES_HOST_AUTH_METHOD=trust
+    command: postgres -c listen_addresses='*'
+    volumes:
+      - postgresql_data:/var/lib/postgresql/data
+      - ./config/init-course-manager.sql:/docker-entrypoint-initdb.d/init-course-manager.sql:ro
+      - ./config/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+    restart: unless-stopped
+    networks:
+      - langgraph_network
+
+  # ===============================
+  # NEO4J - Knowledge Graph Storage (Separated by Microservice)
+  # ===============================
+  
+  # Course Mapper Neo4j Instance
+  neo4j_course_mapper:
+    image: neo4j:5.15
+    container_name: LMW-MVP-course-mapper-knowledge-graph
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      - NEO4J_AUTH=none
+      - NEO4J_PLUGINS=["apoc"]
+    volumes:
+      - neo4j_course_mapper_data:/data
+      - neo4j_course_mapper_logs:/logs
+      - neo4j_course_mapper_import:/var/lib/neo4j/import
+      - neo4j_course_mapper_plugins:/plugins
+    restart: unless-stopped
+    networks:
+      - langgraph_network
+
+  # KLI Application Neo4j Instance
+  neo4j_kli_app:
+    image: neo4j:5.15
+    container_name: LMW-MVP-kli-app-learning-processes
+    ports:
+      - "7475:7474"
+      - "7688:7687"
+    environment:
+      - NEO4J_AUTH=none
+      - NEO4J_PLUGINS=["apoc"]
+    volumes:
+      - neo4j_kli_app_data:/data
+      - neo4j_kli_app_logs:/logs
+      - neo4j_kli_app_import:/var/lib/neo4j/import
+      - neo4j_kli_app_plugins:/plugins
+    restart: unless-stopped
+    networks:
+      - langgraph_network
+
+  # ===============================
+  # REDIS - Caching & Session Management (Separated by Function)
+  # ===============================
+  
+  # Orchestrator State Store (MongoDB)
+  orchestrator_state_store:
+    image: mongo:7.0
+    container_name: LMW-MVP-orchestrator-state-store
+    ports:
+      - "27018:27017"
+    command: mongod --noauth
+    volumes:
+      - orchestrator_state_data:/data/db
+    restart: unless-stopped
+    networks:
+      - langgraph_network
+
+  # Orchestrator Session Cache (Redis)
+  orchestrator_session_cache:
+    image: redis:7.2-alpine
+    container_name: LMW-MVP-orchestrator-session-cache
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - langgraph_network
+
+  # ===============================
+  # LEARNER SUBSYSTEM DATABASES
+  # ===============================
+  
+  # Query Strategy Manager Database
+  query_strategy_db:
+    image: postgres:15
+    container_name: LMW-MVP-query-strategy-learner-profiles
+    ports:
+      - "5433:5432"
+    environment:
+      - POSTGRES_DB=lmw_mvp_query_strategy
+      - POSTGRES_HOST_AUTH_METHOD=trust
+    command: postgres -c listen_addresses='*'
+    volumes:
+      - query_strategy_data:/var/lib/postgresql/data
+      - ./config/init-query-strategy.sql:/docker-entrypoint-initdb.d/init-query-strategy.sql:ro
+      - ./config/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+    restart: unless-stopped
+    networks:
+      - langgraph_network
+
+  # Graph Query Engine Database (Renamed for clarity)
+  graph_query_db:
+    image: postgres:15
+    container_name: LMW-MVP-graph-query-executor
+    ports:
+      - "5434:5432"
+    environment:
+      - POSTGRES_DB=lmw_mvp_graph_query
+      - POSTGRES_HOST_AUTH_METHOD=trust
+    command: postgres -c listen_addresses='*'
+    volumes:
+      - graph_query_data:/var/lib/postgresql/data
+      - ./config/init-graph-query.sql:/docker-entrypoint-initdb.d/init-graph-query.sql:ro
+      - ./config/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+    restart: unless-stopped
+    networks:
+      - langgraph_network
+
+  # Learning Tree Handler Database
+  learning_tree_db:
+    image: postgres:15
+    container_name: LMW-MVP-learning-tree-plt-storage
+    ports:
+      - "5435:5432"
+    environment:
+      - POSTGRES_DB=lmw_mvp_learning_tree
+      - POSTGRES_HOST_AUTH_METHOD=trust
+    command: postgres -c listen_addresses='*'
+    volumes:
+      - learning_tree_data:/var/lib/postgresql/data
+      - ./config/init-learning-tree.sql:/docker-entrypoint-initdb.d/init-learning-tree.sql:ro
+      - ./config/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+    restart: unless-stopped
+    networks:
+      - langgraph_network
+
+  # System Configuration Database
+  system_config_db:
+    image: postgres:15
+    container_name: LMW-MVP-system-config-global-settings
+    ports:
+      - "5436:5432"
+    environment:
+      - POSTGRES_DB=lmw_mvp_system_config
+      - POSTGRES_HOST_AUTH_METHOD=trust
+    command: postgres -c listen_addresses='*'
+    volumes:
+      - system_config_data:/var/lib/postgresql/data
+      - ./config/init-system-config.sql:/docker-entrypoint-initdb.d/init-system-config.sql:ro
+      - ./config/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+    restart: unless-stopped
+    networks:
+      - langgraph_network
+
+  # ===============================
+  # ELASTICSEARCH - Content Search & Indexing
+  # ===============================
+  elasticsearch:
+    image: elasticsearch:8.11.0
+    container_name: LMW-MVP-elasticsearch-content-search
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    restart: unless-stopped
+    networks:
+      - langgraph_network
+
+  # ===============================
+  # ADMINER - Database Management UI (for Development/Admin)
+  # ===============================
+  adminer:
+    image: adminer:latest
+    container_name: LMW-MVP-development-database-admin
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    networks:
+      - langgraph_network
+
+volumes:
+  mongodb_data:
+  postgresql_data:
+  neo4j_course_mapper_data:
+  neo4j_course_mapper_logs:
+  neo4j_course_mapper_import:
+  neo4j_course_mapper_plugins:
+  neo4j_kli_app_data:
+  neo4j_kli_app_logs:
+  neo4j_kli_app_import:
+  neo4j_kli_app_plugins:
+  orchestrator_state_data:
+  redis_data:
+  query_strategy_data:
+  graph_query_data:
+  learning_tree_data:
+  system_config_data:
+  elasticsearch_data:
+
+networks:
+  langgraph_network:
+    driver: bridge

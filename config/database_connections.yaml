@@ -1,0 +1,149 @@
+# Database Connections Configuration
+# This file contains connection settings for all databases used in the system
+
+# Database connection settings
+database_connections:
+  neo4j:
+    # Existing Neo4j container: local-neo4j (NEO4J_AUTH=none)
+    uri: "bolt://localhost:7687"
+    username: null  # No auth configured
+    password: null
+    database: "neo4j"
+    max_connection_lifetime: 3600
+    max_connection_pool_size: 100
+    
+  elasticsearch:
+    # Existing Elasticsearch container: elasticsearch-rag
+    host: "localhost"
+    port: 9200
+    scheme: "http"
+    timeout: 30
+    max_retries: 3
+    # No auth for localhost initial setup
+    # username: "elastic"  # Uncomment for auth
+    # password: "your_password"  # Uncomment for auth
+    indices:
+      course_content: "course_content"
+      knowledge_components: "knowledge_components"
+      learner_data: "learner_data"
+      
+  mongodb:
+    # MongoDB container: LMW-MVP-content-preprocessor-document-storage
+    uri: "mongodb://localhost:27017"
+    database: "lmw_mvp_content_preprocessor"
+    connect_timeout: 30000
+    server_selection_timeout: 30000
+    collections:
+      learner_profiles: "learner_profiles"
+      personalized_learning_trees: "personalized_learning_trees"
+      learning_sessions: "learning_sessions"
+      session_cache: "session_cache"
+      query_cache: "query_cache"
+      
+  redis:
+    # Redis container: LMW-MVP-universal-cache-sessions (no auth)
+    host: "localhost"
+    port: 6379
+    db: 0
+    password: null  # No auth configured
+    socket_timeout: 5
+    connection_pool_size: 50
+    ttl_settings:
+      sessions: 3600      # 1 hour
+      plt_cache: 86400    # 24 hours
+      query_cache: 1800   # 30 minutes
+      user_context: 7200  # 2 hours
+
+  postgresql:
+    # PostgreSQL containers: Multiple databases for different microservices
+    host: "localhost"
+    port: 5432
+    database: "lmw_mvp_course_manager"
+    username: "postgres"
+    password: null
+    connect_timeout: 30
+    command_timeout: 30
+    pool_size: 10
+    max_overflow: 20
+    
+  # Additional PostgreSQL databases for Learner Subsystem
+  query_strategy_db:
+    host: "localhost"
+    port: 5433
+    database: "lmw_mvp_query_strategy"
+    username: "postgres"
+    password: null
+    
+  graph_query_db:
+    host: "localhost"
+    port: 5434
+    database: "lmw_mvp_graph_query"
+    username: "postgres"
+    password: null
+    
+  learning_tree_db:
+    host: "localhost"
+    port: 5435
+    database: "lmw_mvp_learning_tree"
+    username: "postgres"
+    password: null
+    
+  system_config_db:
+    host: "localhost"
+    port: 5436
+    database: "lmw_mvp_system_config"
+    username: "postgres"
+    password: null
+
+# Database-specific settings
+database_settings:
+  neo4j:
+    # Knowledge graph schema settings
+    auto_create_constraints: true
+    auto_create_indexes: true
+    transaction_timeout: 30
+    
+  elasticsearch:
+    # Search and indexing settings
+    refresh_interval: "1s"
+    number_of_shards: 1
+    number_of_replicas: 0
+    
+  mongodb:
+    # Document storage settings
+    write_concern: "majority"
+    read_preference: "primary"
+    
+  redis:
+    # Cache settings
+    eviction_policy: "allkeys-lru"
+    maxmemory: "256mb"
+
+# Environment-specific overrides
+environments:
+  development:
+    neo4j:
+      uri: "bolt://localhost:7687"
+    elasticsearch:
+      host: "localhost"
+    mongodb:
+      uri: "mongodb://localhost:27017"
+    redis:
+      host: "localhost"
+      
+  production:
+    neo4j:
+      uri: "bolt://your-neo4j-host:7687"
+      username: "neo4j"
+      password: "${NEO4J_PASSWORD}"
+    elasticsearch:
+      host: "your-elasticsearch-host"
+      username: "elastic"
+      password: "${ELASTICSEARCH_PASSWORD}"
+    mongodb:
+      uri: "mongodb://your-mongodb-host:27017"
+      username: "admin"
+      password: "${MONGODB_PASSWORD}"
+    redis:
+      host: "your-redis-host"
+      password: "${REDIS_PASSWORD}"

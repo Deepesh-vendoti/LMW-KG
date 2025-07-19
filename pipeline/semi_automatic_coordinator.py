@@ -563,7 +563,7 @@ class SemiAutomaticPipelineCoordinator:
         result = run_cross_subsystem_workflow(
             subsystem=SubsystemType.CONTENT,
             course_id=course_id,
-            source=content_source,
+            upload_type=content_source,
             workflow_type="lo_generation_only",
             **kwargs
         )

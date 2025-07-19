@@ -1,0 +1,36 @@
+# Database Configuration for LangGraph KG System
+
+databases:
+  neo4j:
+    uri: "bolt://localhost:7687"
+    username: "neo4j"
+    password: "your_password"
+    database: "neo4j"
+    
+  elasticsearch:
+    host: "localhost"
+    port: 9200
+    scheme: "http"
+    username: "elastic"  # optional
+    password: "your_password"  # optional
+    indices:
+      course_content: "course_content"
+      knowledge_components: "knowledge_components"
+      
+  mongodb:
+    uri: "mongodb://localhost:27017"
+    database: "langgraph_kg"
+    collections:
+      learner_profiles: "learner_profiles"
+      personalized_learning_trees: "personalized_learning_trees"
+      learning_sessions: "learning_sessions"
+      
+  redis:
+    host: "localhost"
+    port: 6379
+    password: null  # optional
+    db: 0
+    ttl:
+      sessions: 3600  # 1 hour
+      plt_cache: 86400  # 24 hours
+      query_cache: 1800  # 30 minutes

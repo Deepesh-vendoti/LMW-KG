@@ -98,6 +98,11 @@ class UniversalOrchestrator:
         """Initialize orchestration session."""
         print("🚀 [Universal Orchestrator] Initializing session...")
         
+        # Debug: Check initial state
+        print(f"🔍 Initial state keys: {list(state.keys())}")
+        print(f"🔍 learner_context: {state.get('learner_context')}")
+        print(f"🔍 learner_id: {state.get('learner_id')}")
+        
         # Generate session ID if not provided
         if not state.get("session_id"):
             state["session_id"] = f"session_{uuid.uuid4().hex[:8]}_{int(time.time())}"
@@ -116,6 +121,10 @@ class UniversalOrchestrator:
         state["state_validated"] = True
         state["validation_errors"] = []
         state["cross_system_compatibility"] = True
+        
+        # Debug: Check final state
+        print(f"🔍 Final state keys: {list(state.keys())}")
+        print(f"🔍 learner_context after init: {state.get('learner_context')}")
         
         # Log initialization
         self._add_execution_log(state, "session_initialized", {
@@ -140,6 +149,23 @@ class UniversalOrchestrator:
         
         # Get executable services for this subsystem
         executable_services = self.registry.get_executable_services(state, target_subsystem)
+        
+        # Enhanced debugging: Check why services aren't executable
+        if not executable_services:
+            print(f"⚠️ No executable services found for {target_subsystem}")
+            print("🔍 Debugging service availability...")
+            
+            subsystem_services = self.registry.get_subsystem_services(target_subsystem)
+            print(f"   Available services in {target_subsystem}: {[s.service_id for s in subsystem_services]}")
+            
+            for service in subsystem_services:
+                can_execute, reason = self.registry.can_execute_service(service.service_id, state)
+                print(f"   {service.service_id}: {'✅' if can_execute else '❌'} - {reason}")
+                
+                # Check current status
+                service_statuses = state.get("service_statuses", {})
+                current_status = service_statuses.get(service.service_id, "NOT_STARTED")
+                print(f"     Current status: {current_status}")
         
         self._add_execution_log(state, "subsystem_routed", {
             "target_subsystem": target_subsystem.value if target_subsystem else None,
@@ -238,20 +264,34 @@ class UniversalOrchestrator:
             print("⚠️ No executable learner services found")
             return state
         
-        # Execute first available service
-        service_id = executable_services[0]
-        result = self._execute_service(service_id, state)
+        # Execute services in logical order: Query Strategy → Graph Query → Learning Tree
+        service_execution_order = ["query_strategy_manager", "graph_query_engine", "learning_tree_handler"]
         
-        # Update state with result
-        state["service_results"][service_id] = result
-        state["service_statuses"][service_id] = ServiceStatus.COMPLETED
+        executed_count = 0
+        for service_id in service_execution_order:
+            if service_id in executable_services:
+                print(f"🔄 Executing {service_id}...")
+                result = self._execute_service(service_id, state)
+                
+                # Update state with result
+                state["service_results"][service_id] = result
+                state["service_statuses"][service_id] = ServiceStatus.COMPLETED
+                
+                self._add_execution_log(state, "learner_service_executed", {
+                    "service_id": service_id,
+                    "learner_id": state.get("learner_id"),
+                    "execution_order": executed_count + 1
+                })
+                
+                print(f"✅ {service_id} completed")
+                executed_count += 1
+                
+                # Re-check for newly executable services after each execution
+                executable_services = self.registry.get_executable_services(state, SubsystemType.LEARNER)
+            else:
+                print(f"⏭️ Skipping {service_id} - not executable")
         
-        self._add_execution_log(state, "learner_service_executed", {
-            "service_id": service_id,
-            "learner_id": state.get("learner_id")
-        })
-        
-        print(f"✅ Learner service completed: {service_id}")
+        print(f"✅ Learner subsystem completed: {executed_count} services executed")
         return state
     
     def _execute_sme_subsystem(self, state: UniversalState) -> UniversalState:
@@ -415,8 +455,17 @@ class UniversalOrchestrator:
         print("🌍 [Universal Orchestrator] Starting cross-subsystem orchestration...")
         print("=" * 80)
         
+        # Debug: Check initial state before graph invocation
+        print(f"🔍 State before graph.invoke(): {list(initial_state.keys())}")
+        print(f"🔍 learner_context before graph.invoke(): {initial_state.get('learner_context')}")
+        
         try:
-            result = self.graph.invoke(initial_state)
+            # Ensure state is properly formatted for LangGraph
+            # LangGraph expects a dictionary, not a custom object
+            state_dict = dict(initial_state)
+            
+            result = self.graph.invoke(state_dict)
+            
             print("=" * 80)
             print("🎉 [Universal Orchestrator] Cross-subsystem orchestration completed!")
             return result
@@ -439,12 +488,19 @@ def run_cross_subsystem_workflow(
 ) -> UniversalState:
     """Run a cross-subsystem workflow."""
     
+    # Register all services first
+    from orchestrator.main import register_all_services
+    register_all_services()
+    
     orchestrator = create_universal_orchestrator()
     
     initial_state: UniversalState = {
         "subsystem": subsystem,
         "execution_context": kwargs
     }
+    
+    print(f"🔍 Creating initial state for {subsystem}")
+    print(f"🔍 kwargs: {kwargs}")
     
     # Add specific context based on subsystem
     if subsystem == SubsystemType.CONTENT:
@@ -467,9 +523,28 @@ def run_cross_subsystem_workflow(
             "course_id": kwargs.get("course_id", "default_course")
         })
         
+        print(f"🔍 After adding learner basics: {list(initial_state.keys())}")
+        
         # Add learner-specific parameters
         if kwargs.get("learner_profile"):
             initial_state["learner_profile"] = kwargs["learner_profile"]
+            # Query Strategy Manager requires learner_context - map from learner_profile
+            initial_state["learner_context"] = kwargs["learner_profile"]
+            print(f"🔍 Using provided learner_profile as learner_context")
+        else:
+            # Provide default learner context if none provided
+            initial_state["learner_context"] = {
+                "decision_label": "Standard Learner",
+                "experience_level": "intermediate",
+                "learning_style": "adaptive",
+                "performance_score": 5,
+                "attempts": 0,
+                "confusion_level": 0
+            }
+            print(f"🔍 Using default learner_context")
+        
+        print(f"🔍 Final learner state keys: {list(initial_state.keys())}")
+        print(f"🔍 learner_context: {initial_state.get('learner_context')}")
             
     elif subsystem == SubsystemType.SME:
         initial_state.update({
@@ -480,5 +555,7 @@ def run_cross_subsystem_workflow(
         initial_state.update({
             "course_id": kwargs.get("course_id", "default_course")
         })
+    
+    print(f"🔍 Final initial state before orchestrator.run(): {list(initial_state.keys())}")
     
     return orchestrator.run(initial_state) 

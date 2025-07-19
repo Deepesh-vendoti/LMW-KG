@@ -8,25 +8,63 @@ llm:
 # Database Configuration
 databases:
   neo4j:
-    uri: "bolt://localhost:7687"
-    auth: null
+    course_mapper:
+      uri: "bolt://localhost:7687"
+      auth: "none"
+    kli_app:
+      uri: "bolt://localhost:7688"
+      auth: "none"
   elasticsearch:
     endpoint: "http://localhost:9200"
     index: "advanced_docs_elasticsearch_v2"
     vector_store_dir: "./elasticsearch_storage_v2"
+    auth: "none"
   mongodb:
-    uri: "mongodb://localhost:27017"
-    database: "langgraph_kg"
+    content_preprocessor:
+      uri: "mongodb://localhost:27017"
+      database: "lmw_mvp_content_preprocessor"
+      auth: "none"
+    orchestrator_state:
+      uri: "mongodb://localhost:27018"
+      database: "lmw_mvp_orchestrator"
+      auth: "none"
   postgresql:
-    host: "localhost"
-    port: 5432
-    database: "langgraph_kg"
-    user: "postgres"
-    password: null
+    course_manager:
+      host: "127.0.0.1"
+      port: 5432
+      database: "lmw_mvp_course_manager"
+      user: "none"
+      password: "none"
+    query_strategy:
+      host: "127.0.0.1"
+      port: 5433
+      database: "lmw_mvp_query_strategy"
+      user: "none"
+      password: "none"
+    graph_query:
+      host: "127.0.0.1"
+      port: 5434
+      database: "lmw_mvp_graph_query"
+      user: "none"
+      password: "none"
+    learning_tree:
+      host: "127.0.0.1"
+      port: 5435
+      database: "lmw_mvp_learning_tree"
+      user: "none"
+      password: "none"
+    system_config:
+      host: "127.0.0.1"
+      port: 5436
+      database: "lmw_mvp_system_config"
+      user: "none"
+      password: "none"
   redis:
-    host: "localhost"
-    port: 6379
-    db: 0
+    orchestrator_cache:
+      host: "localhost"
+      port: 6379
+      db: 0
+      auth: "none"
 
 # Course Configuration
 courses:

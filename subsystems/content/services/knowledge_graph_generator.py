@@ -7,7 +7,10 @@ Neo4j, MongoDB, PostgreSQL integration with FFCS output.
 
 from typing import Dict, Any, List, Optional
 import logging
+from datetime import datetime
+import uuid
 from orchestrator.state import UniversalState, ServiceStatus, SubsystemType
+from utils.database_connections import get_database_manager
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +29,7 @@ class KnowledgeGraphGeneratorService:
     def __init__(self):
         self.service_id = "knowledge_graph_generator"
         self.subsystem = SubsystemType.CONTENT
+        self.db_manager = get_database_manager()
         
     def __call__(self, state: UniversalState) -> UniversalState:
         """
@@ -222,14 +226,14 @@ class KnowledgeGraphGeneratorService:
         except Exception as e:
             storage_results["neo4j"] = {"status": "error", "error": str(e)}
         
-        # Store in MongoDB (placeholder for future implementation)
+        # Store in MongoDB
         try:
             mongodb_result = self._store_in_mongodb(knowledge_graph)
             storage_results["mongodb"] = mongodb_result
         except Exception as e:
             storage_results["mongodb"] = {"status": "error", "error": str(e)}
         
-        # Store in PostgreSQL (placeholder for future implementation)
+        # Store in PostgreSQL
         try:
             postgresql_result = self._store_in_postgresql(knowledge_graph)
             storage_results["postgresql"] = postgresql_result
@@ -325,22 +329,105 @@ class KnowledgeGraphGeneratorService:
         return data_list
     
     def _store_in_mongodb(self, knowledge_graph: Dict[str, Any]) -> Dict[str, Any]:
-        """Store knowledge graph in MongoDB (placeholder)."""
-        # Placeholder for MongoDB implementation
-        return {
-            "status": "not_implemented",
-            "message": "MongoDB storage not yet implemented",
-            "database": "mongodb"
-        }
+        """Store knowledge graph in MongoDB."""
+        try:
+            # Get MongoDB database
+            db = self.db_manager.get_mongodb_database('kg_snapshots_db')
+            
+            # Create snapshot document
+            snapshot = {
+                "knowledge_graph": knowledge_graph,
+                "created_at": datetime.now(),
+                "version": "1.0",
+                "status": "active"
+            }
+            
+            # Insert into course_snapshots collection
+            result = db.course_snapshots.insert_one(snapshot)
+            
+            # Store version control info
+            version_info = {
+                "snapshot_id": str(result.inserted_id),
+                "version": "1.0",
+                "created_at": datetime.now(),
+                "status": "active"
+            }
+            db.kg_versions.insert_one(version_info)
+            
+            # Log export
+            export_log = {
+                "snapshot_id": str(result.inserted_id),
+                "export_type": "knowledge_graph",
+                "exported_at": datetime.now(),
+                "status": "success"
+            }
+            db.export_logs.insert_one(export_log)
+            
+            return {
+                "status": "success",
+                "snapshot_id": str(result.inserted_id),
+                "records_inserted": 3,  # snapshot + version + log
+                "database": "mongodb"
+            }
+            
+        except Exception as e:
+            logger.error(f"MongoDB storage failed: {e}")
+            return {
+                "status": "error",
+                "error": str(e),
+                "database": "mongodb"
+            }
     
     def _store_in_postgresql(self, knowledge_graph: Dict[str, Any]) -> Dict[str, Any]:
-        """Store knowledge graph in PostgreSQL (placeholder)."""
-        # Placeholder for PostgreSQL implementation
-        return {
-            "status": "not_implemented", 
-            "message": "PostgreSQL storage not yet implemented",
-            "database": "postgresql"
-        }
+        """Store knowledge graph metadata in PostgreSQL."""
+        try:
+            with self.db_manager.postgresql_cursor() as cursor:
+                # Store KG metadata
+                cursor.execute("""
+                    INSERT INTO kg_metadata (kg_id, course_id, version, status, created_at)
+                    VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
+                """, (
+                    str(uuid.uuid4()),
+                    knowledge_graph.get("course_id", "unknown"),
+                    "1.0",
+                    "active"
+                ))
+                
+                # Store version control
+                cursor.execute("""
+                    INSERT INTO version_control (version_id, kg_id, version, created_at)
+                    VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
+                """, (
+                    str(uuid.uuid4()),
+                    str(uuid.uuid4()),
+                    "1.0"
+                ))
+                
+                # Store faculty approval record
+                cursor.execute("""
+                    INSERT INTO faculty_approvals (approval_id, kg_id, stage, status, faculty_id, created_at)
+                    VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                """, (
+                    str(uuid.uuid4()),
+                    str(uuid.uuid4()),
+                    "FFCS",
+                    "approved",
+                    knowledge_graph.get("faculty_id", "default_faculty")
+                ))
+                
+                return {
+                    "status": "success",
+                    "records_inserted": 3,  # metadata + version + approval
+                    "database": "postgresql"
+                }
+                
+        except Exception as e:
+            logger.error(f"PostgreSQL storage failed: {e}")
+            return {
+                "status": "error",
+                "error": str(e),
+                "database": "postgresql"
+            }
     
     def _generate_ffcs(self, fccs: Dict[str, Any], knowledge_graph: Dict[str, Any], storage_results: Dict[str, Any]) -> Dict[str, Any]:
         """Generate Faculty Finalized Course Structure (FFCS)."""

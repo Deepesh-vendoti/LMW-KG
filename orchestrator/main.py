@@ -86,6 +86,13 @@ def register_all_services():
     except ImportError as e:
         print(f"⚠️ Could not register graph_query_engine: {e}")
     
+    try:
+        from subsystems.learner.services.query_strategy_manager import create_query_strategy_manager_service
+        query_strategy_manager = create_query_strategy_manager_service()
+        registry.register_service(query_strategy_manager.get_service_definition(), SubsystemType.LEARNER)
+    except ImportError as e:
+        print(f"⚠️ Could not register query_strategy_manager: {e}")
+    
     # Register learner subsystem definition
     learner_services = [s for s in registry.services.values() if s.subsystem == SubsystemType.LEARNER]
     if learner_services:

@@ -1,0 +1,39 @@
+# Virtual Environment
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Large Data Files
+ostep_chunks.json
+knowledge_extracts.json
+data_large/
+
+# Documentation PDFs (large binary files)
+Docs/*.pdf
+
+# Log Files
+logs/
+*.log
+
+# Archive/Legacy Code (unless actively working on migration)
+archive/
+Alternatives/
+
+# Docker and System Files
+.DS_Store
+docker-compose.yml
+
+# IDE Files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary Files
+*.tmp
+*.temp
+tmp/
+temp/

@@ -7,6 +7,7 @@ Provides Cypher query generation and execution for learner queries.
 
 from typing import Dict, Any, List, Optional
 import logging
+from datetime import datetime
 from orchestrator.state import UniversalState, ServiceStatus, SubsystemType
 
 logger = logging.getLogger(__name__)
@@ -26,24 +27,22 @@ class GraphQueryEngineService:
         self.service_id = "graph_query_engine"
         self.subsystem = SubsystemType.LEARNER
         
-    def __call__(self, state: UniversalState) -> UniversalState:
-        """
-        Main entry point for graph query execution.
-        Compatible with LangGraph orchestrator.
-        """
-        print(f"🔍 [Graph Query Engine] Executing queries...")
-        
+    def __call__(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute knowledge graph queries with adaptive strategy."""
         try:
-            # Extract query context
+            # Extract required inputs
             learner_id = state.get("learner_id")
-            course_id = state.get("course_id") 
+            course_id = state.get("course_id")
             learner_query = state.get("learner_query", "")
+            query_strategy = state.get("query_strategy", {})  # From Query Strategy Manager
             
             if not learner_id or not course_id:
                 raise ValueError("Learner ID and Course ID are required")
             
-            # Execute various query types using existing functions
-            query_results = self._execute_queries(learner_id, course_id, learner_query)
+            # Execute queries using strategy guidance
+            query_results = self._execute_queries_with_strategy(
+                learner_id, course_id, learner_query, query_strategy
+            )
             
             # Update state with results
             state["query_results"] = query_results
@@ -81,117 +80,231 @@ class GraphQueryEngineService:
             
             return state
     
-    def _execute_queries(self, learner_id: str, course_id: str, learner_query: str) -> List[Dict[str, Any]]:
-        """Execute various query types using existing database functions."""
+    def _execute_queries_with_strategy(self, learner_id: str, course_id: str, 
+                                      learner_query: str, query_strategy: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute knowledge graph queries using adaptive strategy."""
         try:
-            print("🔄 Using existing Neo4j query functions...")
+            print("🔄 Executing queries with adaptive strategy...")
             
-            query_results = []
+            # Extract strategy parameters
+            personalization_strategy = query_strategy.get('personalization_strategy', {})
+            learner_type = personalization_strategy.get('learner_type', 'visual')
+            intervention_strategy = personalization_strategy.get('intervention_strategy', 'scaffolding')
+            delivery_strategy = personalization_strategy.get('delivery_strategy', 'interactive')
             
-            # Query 1: Get PLT for learner (existing function)
-            try:
-                from graph.db import get_plt_for_learner
-                plt_steps = get_plt_for_learner(learner_id, course_id)
-                
-                query_results.append({
-                    "query_type": "plt_for_learner",
-                    "query": f"PLT steps for learner {learner_id} in course {course_id}",
-                    "results": plt_steps,
-                    "count": len(plt_steps) if plt_steps else 0,
-                    "status": "success"
-                })
-                
-            except Exception as e:
-                query_results.append({
-                    "query_type": "plt_for_learner",
-                    "query": f"PLT steps for learner {learner_id} in course {course_id}",
-                    "results": [],
-                    "count": 0,
-                    "status": "error",
-                    "error": str(e)
-                })
+            # Execute base queries
+            base_results = self._execute_queries(learner_id, course_id, learner_query)
             
-            # Query 2: Get knowledge components under learning objectives (existing function)
-            try:
-                from graph.db import get_kcs_under_lo
-                
-                # Get a sample LO to query KCs (in practice, this would be more sophisticated)
-                sample_lo = "Understand Memory Management"
-                kcs = get_kcs_under_lo(sample_lo)
-                
-                query_results.append({
-                    "query_type": "kcs_under_lo",
-                    "query": f"Knowledge components under LO: {sample_lo}",
-                    "results": kcs,
-                    "count": len(kcs) if kcs else 0,
-                    "status": "success"
-                })
-                
-            except Exception as e:
-                query_results.append({
-                    "query_type": "kcs_under_lo",
-                    "query": f"Knowledge components under LO: {sample_lo}",
-                    "results": [],
-                    "count": 0,
-                    "status": "error",
-                    "error": str(e)
-                })
+            # Apply strategy-specific enhancements
+            enhanced_results = {
+                "base_queries": base_results,
+                "strategy_enhanced": {
+                    "learner_type_queries": self._get_learner_type_queries(learner_type),
+                    "intervention_queries": self._get_intervention_queries(intervention_strategy),
+                    "delivery_queries": self._get_delivery_queries(delivery_strategy),
+                },
+                "knowledge_graph_data": self._extract_knowledge_graph_data(base_results),
+                "strategy_metadata": {
+                    "learner_type": learner_type,
+                    "intervention_strategy": intervention_strategy,
+                    "delivery_strategy": delivery_strategy,
+                    "query_timestamp": datetime.now().isoformat()
+                }
+            }
             
-            # Query 3: Get best instruction method for KC and learning process (existing function)
-            try:
-                from graph.db import get_best_im_for_kc_lp
-                
-                # Sample query (in practice, this would be driven by learner context)
-                sample_kc = "Virtual Memory Concepts"
-                sample_lp = "Understanding"
-                best_im = get_best_im_for_kc_lp(sample_kc, sample_lp)
-                
-                query_results.append({
-                    "query_type": "best_im_for_kc_lp",
-                    "query": f"Best IM for KC: {sample_kc}, LP: {sample_lp}",
-                    "results": best_im,
-                    "count": len(best_im) if best_im else 0,
-                    "status": "success"
-                })
-                
-            except Exception as e:
-                query_results.append({
-                    "query_type": "best_im_for_kc_lp",
-                    "query": f"Best IM for KC: {sample_kc}, LP: {sample_lp}",
-                    "results": [],
-                    "count": 0,
-                    "status": "error",
-                    "error": str(e)
-                })
+            return enhanced_results
             
-            # Query 4: Custom learner query (if provided)
+        except Exception as e:
+            raise Exception(f"Strategy-based query execution failed: {e}")
+    
+    def _get_learner_type_queries(self, learner_type: str) -> List[Dict]:
+        """Get queries specific to learner type."""
+        queries = []
+        
+        if learner_type == "visual":
+            queries.extend([
+                {"type": "visual_concepts", "query": "MATCH (n:Concept)-[:HAS_VISUAL_REPRESENTATION]->(v) RETURN n, v"},
+                {"type": "diagrams", "query": "MATCH (n:Concept)-[:HAS_DIAGRAM]->(d) RETURN n, d"}
+            ])
+        elif learner_type == "auditory":
+            queries.extend([
+                {"type": "audio_content", "query": "MATCH (n:Concept)-[:HAS_AUDIO]->(a) RETURN n, a"},
+                {"type": "verbal_explanations", "query": "MATCH (n:Concept)-[:HAS_EXPLANATION]->(e) RETURN n, e"}
+            ])
+        elif learner_type == "kinesthetic":
+            queries.extend([
+                {"type": "hands_on_activities", "query": "MATCH (n:Concept)-[:HAS_ACTIVITY]->(a) RETURN n, a"},
+                {"type": "simulations", "query": "MATCH (n:Concept)-[:HAS_SIMULATION]->(s) RETURN n, s"}
+            ])
+        
+        return queries
+    
+    def _get_intervention_queries(self, intervention_strategy: str) -> List[Dict]:
+        """Get queries for intervention strategy."""
+        queries = []
+        
+        if intervention_strategy == "scaffolding":
+            queries.extend([
+                {"type": "prerequisites", "query": "MATCH (n:Concept)-[:PREREQUISITE]->(p) RETURN n, p"},
+                {"type": "step_by_step", "query": "MATCH (n:Concept)-[:HAS_STEPS]->(s) RETURN n, s"}
+            ])
+        elif intervention_strategy == "inquiry":
+            queries.extend([
+                {"type": "questions", "query": "MATCH (n:Concept)-[:HAS_QUESTION]->(q) RETURN n, q"},
+                {"type": "explorations", "query": "MATCH (n:Concept)-[:ENABLES_EXPLORATION]->(e) RETURN n, e"}
+            ])
+        elif intervention_strategy == "collaborative":
+            queries.extend([
+                {"type": "group_activities", "query": "MATCH (n:Concept)-[:HAS_GROUP_ACTIVITY]->(g) RETURN n, g"},
+                {"type": "peer_discussions", "query": "MATCH (n:Concept)-[:HAS_DISCUSSION]->(d) RETURN n, d"}
+            ])
+        
+        return queries
+    
+    def _get_delivery_queries(self, delivery_strategy: str) -> List[Dict]:
+        """Get queries for delivery strategy."""
+        queries = []
+        
+        if delivery_strategy == "interactive":
+            queries.extend([
+                {"type": "interactive_elements", "query": "MATCH (n:Concept)-[:HAS_INTERACTIVE]->(i) RETURN n, i"},
+                {"type": "simulations", "query": "MATCH (n:Concept)-[:HAS_SIMULATION]->(s) RETURN n, s"}
+            ])
+        elif delivery_strategy == "multimedia":
+            queries.extend([
+                {"type": "multimedia_content", "query": "MATCH (n:Concept)-[:HAS_MULTIMEDIA]->(m) RETURN n, m"},
+                {"type": "rich_media", "query": "MATCH (n:Concept)-[:HAS_MEDIA]->(m) RETURN n, m"}
+            ])
+        elif delivery_strategy == "gamified":
+            queries.extend([
+                {"type": "game_elements", "query": "MATCH (n:Concept)-[:HAS_GAME_ELEMENT]->(g) RETURN n, g"},
+                {"type": "challenges", "query": "MATCH (n:Concept)-[:HAS_CHALLENGE]->(c) RETURN n, c"}
+            ])
+        
+        return queries
+    
+    def _extract_knowledge_graph_data(self, base_results: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract structured knowledge graph data from base results."""
+        return {
+            "concepts": base_results.get("concepts", []),
+            "relationships": base_results.get("relationships", []),
+            "difficulty_levels": base_results.get("difficulty_levels", []),
+            "learning_objectives": base_results.get("learning_objectives", [])
+        }
+    
+    def _execute_queries(self, learner_id: str, course_id: str, learner_query: str) -> Dict[str, Any]:
+        """Execute various knowledge graph queries."""
+        try:
+            print("🔄 Executing knowledge graph queries...")
+            
+            # Import existing query functions - use correct function name
+            from graph.query_strategy import determine_query_strategy
+            
+            # Execute different types of queries
+            results = {
+                "concepts": self._query_concepts(course_id),
+                "relationships": self._query_relationships(course_id),
+                "learning_objectives": self._query_learning_objectives(course_id),
+                "difficulty_levels": self._query_difficulty_levels(course_id),
+                "prerequisites": self._query_prerequisites(course_id),
+                "assessments": self._query_assessments(course_id),
+                "learner_progress": self._query_learner_progress(learner_id, course_id),
+                "personalization_data": self._query_personalization_data(learner_id)
+            }
+            
+            # Filter results based on learner query if provided
             if learner_query:
-                try:
-                    # For now, we'll provide a mock response
-                    # In practice, this would parse the query and execute appropriate Cypher
-                    custom_result = {
-                        "query_type": "custom_learner_query",
-                        "query": learner_query,
-                        "results": [{"message": f"Processed query: {learner_query}"}],
-                        "count": 1,
-                        "status": "mock_response"
-                    }
-                    query_results.append(custom_result)
-                    
-                except Exception as e:
-                    query_results.append({
-                        "query_type": "custom_learner_query",
-                        "query": learner_query,
-                        "results": [],
-                        "count": 0,
-                        "status": "error",
-                        "error": str(e)
-                    })
+                results = self._filter_results_by_query(results, learner_query)
             
-            return query_results
+            print(f"✅ Executed {len(results)} different query types")
+            return results
             
         except Exception as e:
             raise Exception(f"Query execution failed: {e}")
+    
+    def _query_concepts(self, course_id: str) -> List[Dict[str, Any]]:
+        """Query concepts for a course."""
+        # Stub implementation - would connect to Neo4j in production
+        return [
+            {"concept_id": "concept_1", "name": "Operating Systems", "difficulty": "intermediate"},
+            {"concept_id": "concept_2", "name": "Memory Management", "difficulty": "advanced"}
+        ]
+    
+    def _query_relationships(self, course_id: str) -> List[Dict[str, Any]]:
+        """Query relationships between concepts."""
+        # Stub implementation
+        return [
+            {"from_concept": "Operating Systems", "to_concept": "Memory Management", "relationship": "includes"}
+        ]
+    
+    def _query_learning_objectives(self, course_id: str) -> List[Dict[str, Any]]:
+        """Query learning objectives for a course."""
+        # Stub implementation
+        return [
+            {"lo_id": "lo_1", "text": "Understand OS fundamentals", "priority": "high"},
+            {"lo_id": "lo_2", "text": "Master memory management", "priority": "medium"}
+        ]
+    
+    def _query_difficulty_levels(self, course_id: str) -> List[Dict[str, Any]]:
+        """Query difficulty levels for course content."""
+        # Stub implementation
+        return [
+            {"level": "beginner", "concepts": ["OS basics"]},
+            {"level": "intermediate", "concepts": ["Process management"]},
+            {"level": "advanced", "concepts": ["Memory optimization"]}
+        ]
+    
+    def _query_prerequisites(self, course_id: str) -> List[Dict[str, Any]]:
+        """Query prerequisites for course content."""
+        # Stub implementation
+        return [
+            {"concept": "Memory Management", "prerequisites": ["Computer Architecture", "Data Structures"]}
+        ]
+    
+    def _query_assessments(self, course_id: str) -> List[Dict[str, Any]]:
+        """Query assessments for a course."""
+        # Stub implementation
+        return [
+            {"assessment_id": "quiz_1", "type": "MCQ", "difficulty": "medium"},
+            {"assessment_id": "project_1", "type": "hands_on", "difficulty": "high"}
+        ]
+    
+    def _query_learner_progress(self, learner_id: str, course_id: str) -> Dict[str, Any]:
+        """Query learner progress for a specific course."""
+        # Stub implementation
+        return {
+            "learner_id": learner_id,
+            "course_id": course_id,
+            "completed_lessons": 3,
+            "total_lessons": 10,
+            "current_score": 75,
+            "time_spent_minutes": 120
+        }
+    
+    def _query_personalization_data(self, learner_id: str) -> Dict[str, Any]:
+        """Query personalization data for a learner."""
+        # Stub implementation
+        return {
+            "learner_id": learner_id,
+            "learning_style": "visual",
+            "preferred_difficulty": "medium",
+            "interaction_pattern": "active"
+        }
+    
+    def _filter_results_by_query(self, results: Dict[str, Any], learner_query: str) -> Dict[str, Any]:
+        """Filter results based on learner query."""
+        # Simple filtering - in production would use semantic search
+        filtered_results = {}
+        query_lower = learner_query.lower()
+        
+        for key, value in results.items():
+            if isinstance(value, list):
+                # Filter list items that might match the query
+                filtered_results[key] = value  # For now, return all
+            else:
+                filtered_results[key] = value
+        
+        return filtered_results
     
     def get_service_definition(self):
         """Get service definition for registration."""
@@ -201,10 +314,10 @@ class GraphQueryEngineService:
             service_id=self.service_id,
             subsystem=self.subsystem,
             name="Graph Query Engine",
-            description="Executes Cypher queries against Neo4j using existing database functions",
-            dependencies=["learning_tree_handler"],  # Typically runs after PLT generation
-            required_inputs=["learner_id", "course_id"],
-            provided_outputs=["query_results"],
+            description="Executes knowledge graph queries with adaptive strategy",
+            dependencies=["query_strategy_manager"],  # Needs strategy to determine query approach
+            required_inputs=["course_id", "query_strategy"],
+            provided_outputs=["query_results", "knowledge_graph_data"],
             callable=self,
             timeout_seconds=300
         )

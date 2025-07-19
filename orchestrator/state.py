@@ -84,6 +84,7 @@ class UniversalState(TypedDict, total=False):
     # ===== LEARNER SUBSYSTEM =====
     # Learner context and personalization
     learner_profile: Optional[Dict[str, Any]]
+    learner_context: Optional[Dict[str, Any]]  # Required by Query Strategy Manager
     learning_preferences: Optional[Dict[str, Any]]
     learning_history: Optional[List[Dict[str, Any]]]
     
