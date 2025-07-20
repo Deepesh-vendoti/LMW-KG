@@ -9,6 +9,7 @@ Integrates with existing LangGraph agents and provides FACD output.
 
 from typing import Dict, Any, List, Optional
 import logging
+import re
 from langchain_core.messages import HumanMessage
 from orchestrator.state import UniversalState, ServiceStatus, SubsystemType
 
@@ -154,61 +155,139 @@ class CourseMappingService:
     
     def _extract_learning_objectives(self, content: str) -> List[Dict[str, Any]]:
         """Extract learning objectives from agent output."""
-        # Simple keyword-based extraction (production would use more sophisticated NLP)
         objectives = []
+        
+        # Remove <think> tags and their content
+        content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL)
+        
         lines = content.split('\n')
         
         lo_count = 1
-        for line in lines:
-            line_lower = line.lower()
-            if any(keyword in line_lower for keyword in ['understand', 'analyze', 'evaluate', 'learn', 'objective']):
-                if len(line.strip()) > 10:  # Avoid very short lines
-                    objectives.append({
-                        "lo_id": f"LO_{lo_count:03d}",
-                        "text": line.strip()
-                    })
-                    lo_count += 1
-                    
-                if len(objectives) >= 5:  # Limit to 5 objectives
-                    break
+        in_objectives_section = False
         
-        # Ensure at least some objectives
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+                
+            # Check if we're entering the objectives section
+            if any(keyword in line.lower() for keyword in ['learning objectives', 'objectives:', 'lo:', 'initial draft']):
+                in_objectives_section = True
+                continue
+                
+            # If we're in objectives section, look for numbered objectives
+            if in_objectives_section:
+                # Look for numbered lines (1., 2., etc.) or lines starting with LO keywords
+                if (line[0].isdigit() and '.' in line[:3]) or any(keyword in line.lower() for keyword in 
+                    ['understand', 'analyze', 'evaluate', 'learn', 'objective', 'explain', 'describe', 'compare', 'implement', 'debug', 'simulate', 'create', 'use', 'document', 'collaborate']):
+                    
+                    # Clean up the line (remove numbering, extra spaces)
+                    clean_line = line
+                    if line[0].isdigit() and '.' in line[:3]:
+                        # Remove numbering like "1.", "2.", etc.
+                        clean_line = line.split('.', 1)[1].strip() if '.' in line else line
+                    
+                    if len(clean_line) > 10:  # Avoid very short lines
+                        objectives.append({
+                            "lo_id": f"LO_{lo_count:03d}",
+                            "text": clean_line
+                        })
+                        lo_count += 1
+                        
+                        # Stop if we've found a reasonable number (up to 30 as per LLM output)
+                        if len(objectives) >= 30:
+                            break
+        
+        # If we didn't find any objectives with the improved logic, try fallback
+        if not objectives:
+            # Look for any line that might be an objective
+            for line in lines:
+                line = line.strip()
+                if len(line) > 15 and any(keyword in line.lower() for keyword in 
+                    ['understand', 'analyze', 'evaluate', 'explain', 'describe', 'compare', 'implement']):
+                    objectives.append({
+                        "lo_id": f"LO_{len(objectives)+1:03d}",
+                        "text": line
+                    })
+                    if len(objectives) >= 10:  # Limit fallback to 10
+                        break
+        
+        # Final fallback to ensure we have some objectives
         if not objectives:
             objectives = [
                 {"lo_id": "LO_001", "text": "Understand core operating system concepts"},
                 {"lo_id": "LO_002", "text": "Analyze system resource management"},
-                {"lo_id": "LO_003", "text": "Evaluate system performance"}
+                {"lo_id": "LO_003", "text": "Evaluate system performance"},
+                {"lo_id": "LO_004", "text": "Explain virtual memory mechanisms"},
+                {"lo_id": "LO_005", "text": "Compare scheduling algorithms"}
             ]
         
         return objectives
     
     def _extract_knowledge_components(self, content: str) -> List[Dict[str, Any]]:
         """Extract knowledge components from agent output."""
-        # Simple keyword-based extraction
         components = []
         lines = content.split('\n')
         
         kc_count = 1
-        for line in lines:
-            line_lower = line.lower()
-            if any(keyword in line_lower for keyword in ['component', 'concept', 'knowledge', 'skill', 'topic']):
-                if len(line.strip()) > 5:
-                    components.append({
-                        "kc_id": f"KC_{kc_count:03d}",
-                        "text": line.strip(),
-                        "lo_id": f"LO_{((kc_count - 1) // 2) + 1:03d}"  # Link to LOs
-                    })
-                    kc_count += 1
-                    
-                if len(components) >= 10:  # Limit to 10 components
-                    break
+        in_kc_section = False
         
-        # Ensure at least some components
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+                
+            # Check if we're entering KC section
+            if any(keyword in line.lower() for keyword in ['knowledge components', 'kc candidates', 'components:', 'kc:']):
+                in_kc_section = True
+                continue
+                
+            # If we're in KC section, look for bullet points or numbered items
+            if in_kc_section:
+                # Look for lines starting with - or * or numbered items
+                if (line.startswith('-') or line.startswith('*') or 
+                    (line[0].isdigit() and '.' in line[:3])):
+                    
+                    # Clean up the line
+                    clean_line = line
+                    if line.startswith('-') or line.startswith('*'):
+                        clean_line = line[1:].strip()
+                    elif line[0].isdigit() and '.' in line[:3]:
+                        clean_line = line.split('.', 1)[1].strip() if '.' in line else line
+                    
+                    if len(clean_line) > 5:
+                        components.append({
+                            "kc_id": f"KC_{kc_count:03d}",
+                            "text": clean_line,
+                            "lo_id": f"LO_{((kc_count - 1) // 3) + 1:03d}"  # Link to LOs (3 KCs per LO)
+                        })
+                        kc_count += 1
+                        
+                        if len(components) >= 50:  # Allow more KCs
+                            break
+        
+        # If we didn't find KCs with improved logic, try fallback
+        if not components:
+            for line in lines:
+                line = line.strip()
+                if len(line) > 8 and any(keyword in line.lower() for keyword in 
+                    ['component', 'concept', 'knowledge', 'skill', 'topic', 'mechanism', 'policy', 'abstraction']):
+                    components.append({
+                        "kc_id": f"KC_{len(components)+1:03d}",
+                        "text": line,
+                        "lo_id": f"LO_{((len(components)) // 3) + 1:03d}"
+                    })
+                    if len(components) >= 20:  # Limit fallback
+                        break
+        
+        # Final fallback to ensure we have some components
         if not components:
             components = [
                 {"kc_id": "KC_001", "text": "Process management fundamentals", "lo_id": "LO_001"},
                 {"kc_id": "KC_002", "text": "Memory allocation strategies", "lo_id": "LO_002"},
-                {"kc_id": "KC_003", "text": "Scheduling algorithm analysis", "lo_id": "LO_003"}
+                {"kc_id": "KC_003", "text": "Scheduling algorithm analysis", "lo_id": "LO_003"},
+                {"kc_id": "KC_004", "text": "Virtual memory concepts", "lo_id": "LO_004"},
+                {"kc_id": "KC_005", "text": "File system operations", "lo_id": "LO_005"}
             ]
         
         return components

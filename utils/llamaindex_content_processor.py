@@ -243,7 +243,7 @@ class LlamaIndexContentProcessor:
                     "query": {
                         "multi_match": {
                             "query": query,
-                            "fields": ["text", "metadata.course_id"]
+                            "fields": ["content", "metadata.course_id"]
                         }
                     },
                     "size": top_k
@@ -258,7 +258,7 @@ class LlamaIndexContentProcessor:
                 for hit in data['hits']['hits']:
                     source = hit['_source']
                     results.append({
-                        "content": source.get('text', ''),
+                        "content": source.get('content', ''),
                         "metadata": source.get('metadata', {}),
                         "score": hit.get('_score', None)
                     })

@@ -112,10 +112,15 @@ def test_neo4j_insertion(learning_objective, chunk_metadata):
         from neo4j import GraphDatabase
         
         # Connect to Neo4j
-        driver = GraphDatabase.driver(
-            NEO4J_COURSE_MAPPER_URI,
-            auth=NEO4J_COURSE_MAPPER_AUTH
-        )
+        if NEO4J_COURSE_MAPPER_AUTH == "none":
+            # No authentication
+            driver = GraphDatabase.driver(NEO4J_COURSE_MAPPER_URI)
+        else:
+            # With authentication
+            driver = GraphDatabase.driver(
+                NEO4J_COURSE_MAPPER_URI,
+                auth=NEO4J_COURSE_MAPPER_AUTH
+            )
         
         with driver.session() as session:
             # Create LO node

@@ -109,4 +109,10 @@ paths:
   prompts: "./prompts"
   data: "./data"
   uploads: "./uploads"
-  logs: "./logs" 
+  logs: "./logs"
+
+# LangGraph Configuration
+langgraph:
+  recursion_limit: 100
+  debug: false
+  checkpointer: null 

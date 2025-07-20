@@ -89,9 +89,12 @@ class UniversalOrchestrator:
         # End the graph
         graph.add_edge("finalize_session", END)
         
+        # Get LangGraph configuration
+        self.langgraph_config = self._get_langgraph_config()
+        
         self.graph = graph.compile(
-            checkpointer=None, 
-            debug=False,
+            checkpointer=self.langgraph_config.get("checkpointer"), 
+            debug=self.langgraph_config.get("debug", False),
         )
     
     def _initialize_session(self, state: UniversalState) -> UniversalState:
@@ -434,6 +437,19 @@ class UniversalOrchestrator:
             state["service_errors"][service_id] = str(e)
             return {"error": str(e)}
     
+    def _get_langgraph_config(self) -> Dict[str, Any]:
+        """Get LangGraph configuration from config file."""
+        try:
+            from config.loader import config
+            return config.get('langgraph', {})
+        except Exception as e:
+            print(f"⚠️ Could not load LangGraph config: {e}")
+            return {
+                "recursion_limit": 100,
+                "debug": False,
+                "checkpointer": None
+            }
+    
     def _add_execution_log(self, state: UniversalState, event_type: str, event_data: Dict[str, Any]) -> None:
         """Add entry to execution history."""
         log_entry = {
@@ -464,7 +480,13 @@ class UniversalOrchestrator:
             # LangGraph expects a dictionary, not a custom object
             state_dict = dict(initial_state)
             
-            result = self.graph.invoke(state_dict)
+            # Get recursion limit from config
+            recursion_limit = self.langgraph_config.get("recursion_limit", 100)
+            
+            result = self.graph.invoke(
+                state_dict,
+                config={"recursion_limit": recursion_limit}
+            )
             
             print("=" * 80)
             print("🎉 [Universal Orchestrator] Cross-subsystem orchestration completed!")

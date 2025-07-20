@@ -12,7 +12,7 @@ This is the "Adaptation Layer" that faculty was referring to.
 """
 
 import os
-import logging
+import logging as log
 import json
 import hashlib
 from typing import Dict, Any, List, Optional, Literal, Union
@@ -28,23 +28,23 @@ try:
     OPENAI_AVAILABLE = True
 except ImportError:
     OPENAI_AVAILABLE = False
-    logging.warning("OpenAI client not available. Install with: pip install openai")
+    log.warning("OpenAI client not available. Install with: pip install openai")
 
 try:
     import anthropic
     ANTHROPIC_AVAILABLE = True
 except ImportError:
     ANTHROPIC_AVAILABLE = False
-    logging.warning("Anthropic client not available. Install with: pip install anthropic")
+    log.warning("Anthropic client not available. Install with: pip install anthropic")
 
 try:
-    from langchain_ollama import Ollama
+    from langchain_ollama import ChatOllama
     OLLAMA_AVAILABLE = True
 except ImportError:
     OLLAMA_AVAILABLE = False
-    logging.warning("Ollama client not available. Install with: pip install langchain-ollama")
+    log.warning("Ollama client not available. Install with: pip install langchain-ollama")
 
-logger = logging.getLogger(__name__)
+logger = log.getLogger(__name__)
 
 # ===============================
 # TASK TYPE DEFINITIONS
@@ -85,75 +85,16 @@ class ModelRegistry:
     
     def __init__(self):
         self.models = {
-            # OpenAI Models
-            "gpt-4": ModelConfig(
-                name="gpt-4",
-                provider="openai",
-                max_tokens=8192,
-                temperature=0.7,
-                cost_per_1k_tokens=0.03,
-                latency_ms=2000,
-                privacy_level="public",
-                capabilities=["reasoning", "creativity", "analysis"],
-                fallback_to="gpt-3.5-turbo"
-            ),
-            "gpt-3.5-turbo": ModelConfig(
-                name="gpt-3.5-turbo",
-                provider="openai",
-                max_tokens=4096,
-                temperature=0.7,
-                cost_per_1k_tokens=0.002,
-                latency_ms=1000,
-                privacy_level="public",
-                capabilities=["general", "fast"],
-                fallback_to="qwen2.5:7b"
-            ),
-            
-            # Anthropic Models
-            "claude-3-opus": ModelConfig(
-                name="claude-3-opus",
-                provider="anthropic",
-                max_tokens=4096,
-                temperature=0.7,
-                cost_per_1k_tokens=0.015,
-                latency_ms=3000,
-                privacy_level="public",
-                capabilities=["reasoning", "analysis", "writing"],
-                fallback_to="claude-3-sonnet"
-            ),
-            "claude-3-sonnet": ModelConfig(
-                name="claude-3-sonnet",
-                provider="anthropic",
-                max_tokens=4096,
-                temperature=0.7,
-                cost_per_1k_tokens=0.003,
-                latency_ms=2000,
-                privacy_level="public",
-                capabilities=["general", "analysis"],
-                fallback_to="qwen2.5:7b"
-            ),
-            
-            # Ollama Models (Local)
-            "qwen2.5:7b": ModelConfig(
-                name="qwen2.5:7b",
+            # Ollama Models (Local) - ONLY Qwen3:4B
+            "qwen3:4b": ModelConfig(
+                name="qwen3:4b",
                 provider="ollama",
                 max_tokens=4096,
                 temperature=0.7,
                 cost_per_1k_tokens=0.0,  # Local = no cost
-                latency_ms=5000,
+                latency_ms=3000,
                 privacy_level="local",
-                capabilities=["general", "local"],
-                fallback_to="mistral:7b"
-            ),
-            "mistral:7b": ModelConfig(
-                name="mistral:7b",
-                provider="ollama",
-                max_tokens=4096,
-                temperature=0.7,
-                cost_per_1k_tokens=0.0,
-                latency_ms=4000,
-                privacy_level="local",
-                capabilities=["general", "local"],
+                capabilities=["general", "local", "reasoning", "analysis", "creativity"],
                 fallback_to=None
             ),
         }
@@ -194,77 +135,77 @@ class TaskRouter:
         self.task_configs = {
             TaskType.QUIZ_GENERATION: TaskRoutingConfig(
                 task_type=TaskType.QUIZ_GENERATION,
-                preferred_models=["gpt-4", "claude-3-opus", "qwen2.5:7b"],
+                preferred_models=["qwen3:4b"],
                 required_capabilities=["reasoning", "creativity"],
                 max_cost_per_request=0.10,
                 max_latency_ms=5000,
-                privacy_requirement="public",
+                privacy_requirement="local",
                 prompt_template="Generate a quiz based on the following content: {content}",
                 response_format={"type": "object", "properties": {"questions": {"type": "array"}}}
             ),
             TaskType.SUMMARY: TaskRoutingConfig(
                 task_type=TaskType.SUMMARY,
-                preferred_models=["claude-3-sonnet", "gpt-3.5-turbo", "qwen2.5:7b"],
+                preferred_models=["qwen3:4b"],
                 required_capabilities=["analysis"],
                 max_cost_per_request=0.05,
                 max_latency_ms=3000,
-                privacy_requirement="public",
+                privacy_requirement="local",
                 prompt_template="Summarize the following content: {content}",
                 response_format={"type": "string"}
             ),
             TaskType.DIALOGUE: TaskRoutingConfig(
                 task_type=TaskType.DIALOGUE,
-                preferred_models=["gpt-4", "claude-3-sonnet", "qwen2.5:7b"],
+                preferred_models=["qwen3:4b"],
                 required_capabilities=["general"],
                 max_cost_per_request=0.08,
                 max_latency_ms=4000,
-                privacy_requirement="public",
+                privacy_requirement="local",
                 prompt_template="Engage in a dialogue about: {topic}",
                 response_format={"type": "string"}
             ),
             TaskType.KNOWLEDGE_EXTRACTION: TaskRoutingConfig(
                 task_type=TaskType.KNOWLEDGE_EXTRACTION,
-                preferred_models=["gpt-4", "claude-3-opus", "qwen2.5:7b"],
+                preferred_models=["qwen3:4b"],
                 required_capabilities=["analysis", "reasoning"],
                 max_cost_per_request=0.12,
                 max_latency_ms=6000,
-                privacy_requirement="public",
+                privacy_requirement="local",
                 prompt_template="Extract knowledge components from: {content}",
                 response_format={"type": "object", "properties": {"concepts": {"type": "array"}}}
             ),
             TaskType.LEARNING_OBJECTIVE_GENERATION: TaskRoutingConfig(
                 task_type=TaskType.LEARNING_OBJECTIVE_GENERATION,
-                preferred_models=["gpt-4", "claude-3-opus", "qwen2.5:7b"],
+                preferred_models=["qwen3:4b"],
                 required_capabilities=["analysis", "creativity"],
                 max_cost_per_request=0.15,
                 max_latency_ms=7000,
-                privacy_requirement="public",
+                privacy_requirement="local",
                 prompt_template="Generate learning objectives for: {content}",
                 response_format={"type": "object", "properties": {"objectives": {"type": "array"}}}
             ),
             TaskType.INSTRUCTION_METHOD_SELECTION: TaskRoutingConfig(
                 task_type=TaskType.INSTRUCTION_METHOD_SELECTION,
-                preferred_models=["gpt-4", "claude-3-sonnet", "qwen2.5:7b"],
+                preferred_models=["qwen3:4b"],
                 required_capabilities=["analysis"],
                 max_cost_per_request=0.08,
                 max_latency_ms=4000,
-                privacy_requirement="public",
+                privacy_requirement="local",
                 prompt_template="Select instruction methods for: {learning_objective}",
                 response_format={"type": "object", "properties": {"methods": {"type": "array"}}}
             ),
             TaskType.PERSONALIZATION: TaskRoutingConfig(
                 task_type=TaskType.PERSONALIZATION,
-                preferred_models=["gpt-4", "claude-3-sonnet", "qwen2.5:7b"],
+                preferred_models=["qwen3:4b"],
                 required_capabilities=["analysis"],
                 max_cost_per_request=0.06,
                 max_latency_ms=3000,
-                privacy_requirement="private",
+                privacy_requirement="local",
                 prompt_template="Personalize content for learner: {learner_profile}",
                 response_format={"type": "object", "properties": {"personalization": {"type": "object"}}}
             ),
             TaskType.CONTENT_CHUNKING: TaskRoutingConfig(
                 task_type=TaskType.CONTENT_CHUNKING,
-                preferred_models=["gpt-3.5-turbo", "qwen2.5:7b", "mistral:7b"],
+                preferred_models=["qwen3:4b"],
                 required_capabilities=["general"],
                 max_cost_per_request=0.03,
                 max_latency_ms=2000,
@@ -274,21 +215,21 @@ class TaskRouter:
             ),
             TaskType.GRAPH_QUERY: TaskRoutingConfig(
                 task_type=TaskType.GRAPH_QUERY,
-                preferred_models=["gpt-4", "claude-3-sonnet", "qwen2.5:7b"],
+                preferred_models=["qwen3:4b"],
                 required_capabilities=["reasoning"],
                 max_cost_per_request=0.08,
                 max_latency_ms=4000,
-                privacy_requirement="public",
+                privacy_requirement="local",
                 prompt_template="Generate graph query for: {query_context}",
                 response_format={"type": "object", "properties": {"cypher_query": {"type": "string"}}}
             ),
             TaskType.PLT_GENERATION: TaskRoutingConfig(
                 task_type=TaskType.PLT_GENERATION,
-                preferred_models=["gpt-4", "claude-3-opus", "qwen2.5:7b"],
+                preferred_models=["qwen3:4b"],
                 required_capabilities=["reasoning", "creativity"],
                 max_cost_per_request=0.20,
                 max_latency_ms=8000,
-                privacy_requirement="public",
+                privacy_requirement="local",
                 prompt_template="Generate personalized learning tree for: {learner_context}",
                 response_format={"type": "object", "properties": {"plt": {"type": "object"}}}
             ),
@@ -440,7 +381,12 @@ class OllamaAdapter(LLMProviderAdapter):
         self.client = None
         if OLLAMA_AVAILABLE:
             try:
-                self.client = Ollama(model="qwen2.5:7b")
+                self.client = ChatOllama(
+                    model="qwen3:4b",
+                    base_url="http://localhost:11434",  # default Ollama port
+                    temperature=0.3
+                )
+                logger.info("Ollama client initialized successfully with qwen3:4b")
             except Exception as e:
                 logger.warning(f"Ollama client initialization failed: {e}")
     
@@ -454,18 +400,29 @@ class OllamaAdapter(LLMProviderAdapter):
         try:
             # Update model if different from current
             if self.client.model != model_config.name:
-                self.client = Ollama(model=model_config.name)
+                self.client = ChatOllama(
+                    model=model_config.name,
+                    base_url="http://localhost:11434",
+                    temperature=0.3
+                )
             
+            # Use invoke method for ChatOllama
             response = self.client.invoke(prompt)
             
+            # Extract content from response
+            if hasattr(response, 'content'):
+                content = response.content
+            else:
+                content = str(response)
+            
             return {
-                "content": response,
+                "content": content,
                 "model": model_config.name,
                 "provider": "ollama",
                 "usage": {
                     "prompt_tokens": len(prompt.split()),  # Rough estimate
-                    "completion_tokens": len(response.split()),
-                    "total_tokens": len(prompt.split()) + len(response.split())
+                    "completion_tokens": len(content.split()),
+                    "total_tokens": len(prompt.split()) + len(content.split())
                 },
                 "cost": 0.0  # Local models have no cost
             }
@@ -639,9 +596,32 @@ def get_llm_gateway() -> LLMGateway:
 # USAGE EXAMPLES
 # ===============================
 
+def test_ollama_connection():
+    """Test Ollama connection directly."""
+    try:
+        from langchain_community.chat_models import ChatOllama
+        
+        llm = ChatOllama(
+            model="qwen3:4b",
+            base_url="http://localhost:11434",
+            temperature=0.3
+        )
+        
+        response = llm.invoke("Explain LangGraph to a student in one sentence.")
+        print(f"✅ Ollama test successful: {response.content[:100]}...")
+        return True
+    except Exception as e:
+        print(f"❌ Ollama test failed: {e}")
+        return False
+
 def example_usage():
     """Example usage of the LLM Gateway."""
     gateway = get_llm_gateway()
+    
+    # Test Ollama connection first
+    if not test_ollama_connection():
+        print("Ollama connection failed, skipping examples")
+        return
     
     # Generate a quiz
     quiz_response = gateway.generate(
@@ -666,4 +646,5 @@ def example_usage():
     print(f"Provider health: {health}")
 
 if __name__ == "__main__":
+    test_ollama_connection()
     example_usage() 

@@ -19,6 +19,11 @@ def load_prompt(filename: str) -> str:
     if os.path.exists(stage1_path):
         with open(stage1_path, "r") as f:
             return f.read()
+    # Check if file exists in stage2 directory
+    stage2_path = f"prompts/stage2/{filename}"
+    if os.path.exists(stage2_path):
+        with open(stage2_path, "r") as f:
+            return f.read()
     else:
         # Fallback to direct prompts directory
         with open(f"prompts/{filename}", "r") as f:

@@ -12,6 +12,8 @@ from enum import Enum
 from datetime import datetime
 from pathlib import Path
 import sys
+import json
+import pickle
 
 # Add project root to path
 sys.path.append(str(Path(__file__).parent.parent))
@@ -106,6 +108,9 @@ class FacultyApprovalState:
         self.current_stage = FacultyWorkflowStage.AWAITING_LO_APPROVAL
         self.last_updated = datetime.now()
         
+        # Save to persistent storage
+        approval_state_manager.save_workflow(self.course_id)
+        
         self.logger.info("Draft LOs set, awaiting faculty approval",
                         course_id=self.course_id,
                         lo_count=len(draft_los),
@@ -174,6 +179,9 @@ class FacultyApprovalState:
             
         self.approval_history.append(approval_record)
         self.last_updated = datetime.now()
+        
+        # Save to persistent storage
+        approval_state_manager.save_workflow(self.course_id)
         
         return approval_record
     
@@ -361,11 +369,42 @@ class FacultyApprovalState:
 
 # Global approval state manager
 class ApprovalStateManager:
-    """Manages approval states for multiple courses."""
+    """Manages approval states for multiple courses with persistent storage."""
     
     def __init__(self):
         self.active_workflows: Dict[str, FacultyApprovalState] = {}
         self.logger = get_orchestrator_logger("approval_state_manager")
+        self.storage_dir = Path("logs/approval_workflows")
+        self.storage_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Load existing workflows from storage
+        self._load_workflows()
+    
+    def _get_workflow_file(self, course_id: str) -> Path:
+        """Get file path for workflow storage."""
+        return self.storage_dir / f"{course_id}_workflow.pkl"
+    
+    def _save_workflow(self, workflow: FacultyApprovalState) -> None:
+        """Save workflow to persistent storage."""
+        try:
+            workflow_file = self._get_workflow_file(workflow.course_id)
+            with open(workflow_file, 'wb') as f:
+                pickle.dump(workflow, f)
+            self.logger.info("Saved workflow to storage", course_id=workflow.course_id)
+        except Exception as e:
+            self.logger.error("Failed to save workflow", course_id=workflow.course_id, error=str(e))
+    
+    def _load_workflows(self) -> None:
+        """Load all workflows from persistent storage."""
+        try:
+            for workflow_file in self.storage_dir.glob("*_workflow.pkl"):
+                course_id = workflow_file.stem.replace("_workflow", "")
+                with open(workflow_file, 'rb') as f:
+                    workflow = pickle.load(f)
+                    self.active_workflows[course_id] = workflow
+                self.logger.info("Loaded workflow from storage", course_id=course_id)
+        except Exception as e:
+            self.logger.error("Failed to load workflows", error=str(e))
     
     def create_workflow(self, course_id: str, faculty_id: str = None) -> FacultyApprovalState:
         """Create new approval workflow for a course."""
@@ -376,12 +415,37 @@ class ApprovalStateManager:
         workflow = FacultyApprovalState(course_id, faculty_id)
         self.active_workflows[course_id] = workflow
         
+        # Save to persistent storage
+        self._save_workflow(workflow)
+        
         self.logger.info("Created new approval workflow", course_id=course_id)
         return workflow
     
     def get_workflow(self, course_id: str) -> Optional[FacultyApprovalState]:
         """Get existing workflow for a course."""
-        return self.active_workflows.get(course_id)
+        workflow = self.active_workflows.get(course_id)
+        if workflow:
+            return workflow
+        
+        # Try to load from storage if not in memory
+        try:
+            workflow_file = self._get_workflow_file(course_id)
+            if workflow_file.exists():
+                with open(workflow_file, 'rb') as f:
+                    workflow = pickle.load(f)
+                    self.active_workflows[course_id] = workflow
+                    self.logger.info("Loaded workflow from storage", course_id=course_id)
+                    return workflow
+        except Exception as e:
+            self.logger.error("Failed to load workflow from storage", course_id=course_id, error=str(e))
+        
+        return None
+    
+    def save_workflow(self, course_id: str) -> None:
+        """Explicitly save a workflow to storage."""
+        workflow = self.active_workflows.get(course_id)
+        if workflow:
+            self._save_workflow(workflow)
     
     def get_workflows_by_stage(self, stage: FacultyWorkflowStage) -> List[FacultyApprovalState]:
         """Get all workflows currently at a specific stage."""
