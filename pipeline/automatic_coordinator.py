@@ -86,6 +86,7 @@ class MicroservicesAutomaticCoordinator:
             initial_state: UniversalState = {
                 "course_id": course_id,
                 "content_source": content_source,
+                "upload_type": content_source,  # Map content_source to upload_type for microservices
                 "subsystem": SubsystemType.CONTENT,
                 "service_statuses": {},
                 "execution_history": []
@@ -189,6 +190,13 @@ class MicroservicesAutomaticCoordinator:
             # Add learner context if provided
             if learner_context:
                 initial_state["learner_context"] = learner_context
+            else:
+                # Provide default learner context if none provided
+                initial_state["learner_context"] = {
+                    "learning_style": "visual",
+                    "experience_level": "intermediate",
+                    "preferences": []
+                }
             
             # Execute learner pipeline using orchestrator
             result = self.orchestrator.run(initial_state)
@@ -406,10 +414,19 @@ def generate_learner_plt(course_id: str = None,
                         learner_id: str = None,
                         **kwargs) -> Dict[str, Any]:
     """Run learning tree pipeline only."""
+    # Extract learner context from kwargs
+    learner_context = {}
+    if kwargs.get("learning_style"):
+        learner_context["learning_style"] = kwargs["learning_style"]
+    if kwargs.get("experience_level"):
+        learner_context["experience_level"] = kwargs["experience_level"]
+    if kwargs.get("preferences"):
+        learner_context["preferences"] = kwargs["preferences"]
+    
     result = microservices_coordinator.run_learning_tree_pipeline(
         course_id=course_id,
         learner_id=learner_id,
-        **kwargs
+        learner_context=learner_context if learner_context else None
     )
     return {
         "status": result.status,

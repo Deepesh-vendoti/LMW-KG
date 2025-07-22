@@ -32,7 +32,6 @@ from langchain_core.messages import HumanMessage
 from langgraph.graph import StateGraph, END
 
 # Local imports
-from graph.graph import build_graph_stage_1, build_graph_stage_2
 from graph.plt_generator import run_plt_generator
 from orchestrator.state import UniversalState, SubsystemType
 from orchestrator.service_registry import get_service_registry, register_all_services
@@ -42,7 +41,6 @@ from graph.utils.es_to_kg import transform_es_to_kg, validate_es_connection, get
 # Add project root to path for imports
 sys.path.append(str(Path(__file__).parent))
 
-from graph.graph import build_graph_stage_1, build_graph_stage_2
 from graph.plt_generator import run_plt_generator
 from utils.database_manager import insert_plt_to_neo4j, get_plt_for_learner
 from graph.utils.es_to_kg import transform_es_to_kg, validate_es_connection, get_es_chunk_count
@@ -694,39 +692,37 @@ def run_unified_pipeline(args=None):
     print("=" * 50)
     
     try:
-        # Step 1: Run Stage 1 Pipeline (Research & Knowledge Component)
-        print("\n[STEP-1] Running Stage 1: Research & Knowledge Component Pipeline...")
-        content = """
-        Operating Systems Course: Understand the principles of virtual memory, 
-        process scheduling, and file systems in modern operating systems.
-        """
-        messages = [HumanMessage(content=content)]
+        # Step 1: Run Content Processing Pipeline (Research & Knowledge Component)
+        print("\n[STEP-1] Running Content Processing Pipeline (Research → LO → KC)...")
         
-        graph_stage1 = build_graph_stage_1()
-        result_stage1 = graph_stage1.invoke({"messages": messages})
+        # Use microservices content pipeline
+        content_result = process_course_content(
+            course_id="OSN",
+            content_source="llm_generated",
+            raw_content="""
+            Operating Systems Course: Understand the principles of virtual memory, 
+            process scheduling, and file systems in modern operating systems.
+            """
+        )
         
-        print(f"✅ Stage 1 completed with {len(result_stage1['messages'])} agent responses")
+        if content_result["status"] == "completed":
+            print(f"✅ Content processing completed successfully")
+        else:
+            print(f"❌ Content processing failed: {content_result.get('error')}")
         
-        # Extract knowledge components from Stage 1 result
-        kcs = []
-        for msg in result_stage1["messages"]:
-            if "Knowledge Components:" in msg.content:
-                kc_text = msg.content.split("Knowledge Components:")[1].strip()
-                kcs = [kc.strip() for kc in kc_text.split("-") if kc.strip()]
-                break
+        # Step 2: Run Learning Process Pipeline (Learning Process & Instruction)
+        print("\n[STEP-2] Running Learning Process Pipeline (LP → Instruction)...")
         
-        # Step 2: Run Stage 2 Pipeline (Learning Process & Instruction)
-        print("\n[STEP-2] Running Stage 2: Learning Process & Instruction Pipeline...")
-        content = f"""
-        Learning Objective: Understand operating system principles
-        Knowledge Components: {', '.join(kcs[:3])}
-        """
-        messages = [HumanMessage(content=content)]
+        # Use microservices learner pipeline
+        learner_result = generate_learner_plt(
+            course_id="OSN",
+            learner_id="R000"
+        )
         
-        graph_stage2 = build_graph_stage_2()
-        result_stage2 = graph_stage2.invoke({"messages": messages})
-        
-        print(f"✅ Stage 2 completed with {len(result_stage2['messages'])} agent responses")
+        if learner_result["status"] == "completed":
+            print(f"✅ Learning process completed successfully")
+        else:
+            print(f"❌ Learning process failed: {learner_result.get('error')}")
         
         # Step 3: Generate PLT
         print("\n[STEP-3] Generating Personalized Learning Tree...")
@@ -740,8 +736,8 @@ def run_unified_pipeline(args=None):
         
         print("\n[COMPLETE] Unified pipeline completed successfully!")
         return {
-            "stage1_result": result_stage1,
-            "stage2_result": result_stage2,
+            "content_result": content_result,
+            "learner_result": learner_result,
             "plt_result": plt_result if "final_plt" in plt_result else None
         }
         
@@ -787,11 +783,20 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest='command', help='Command to run')
     
-    # Stage 1 command
-    parser_stage1 = subparsers.add_parser('stage1', help='Run Stage 1: Research & Knowledge Component Pipeline')
+    # Content Processing Pipeline (replaces legacy stage1)
+    parser_content = subparsers.add_parser('content', help='Run Content Processing Pipeline (Research → LO → KC)')
+    parser_content.add_argument('--course_id', default='OSN', help='Course ID (default: OSN)')
+    parser_content.add_argument('--source', choices=['pdf', 'elasticsearch', 'llm_generated'], default='elasticsearch', help='Content source type')
+    parser_content.add_argument('--file_path', help='PDF file path (for PDF source)')
+    parser_content.add_argument('--es_index', default='advanced_docs_elasticsearch_v2', help='ES index')
+    parser_content.add_argument('--raw_content', help='Raw content (for LLM generated)')
     
-    # Stage 2 command
-    parser_stage2 = subparsers.add_parser('stage2', help='Run Stage 2: Learning Process & Instruction Pipeline')
+    # Learning Process Pipeline (replaces legacy stage2)
+    parser_learning = subparsers.add_parser('learning', help='Run Learning Process Pipeline (LP → Instruction)')
+    parser_learning.add_argument('--course_id', default='OSN', help='Course ID (default: OSN)')
+    parser_learning.add_argument('--learner_id', default='R000', help='Learner ID (default: R000)')
+    parser_learning.add_argument('--learning_style', choices=['visual', 'auditory', 'kinesthetic'], help='Learning style')
+    parser_learning.add_argument('--experience_level', choices=['beginner', 'intermediate', 'advanced'], help='Experience level')
     
     # PLT command
     parser_plt = subparsers.add_parser('plt', help='Run PLT: Personalized Learning Tree Pipeline')
@@ -827,39 +832,90 @@ def main():
     parser_kg.add_argument('--clear_existing', action='store_true', help='Clear existing data before generation')
     parser_kg.add_argument('--output', help='Output file for visualization (default: kg_diagram.md)')
     
+    # Faculty Workflow commands
+    parser_faculty_start = subparsers.add_parser('faculty-start', help='Start Faculty Approval Workflow')
+    parser_faculty_start.add_argument('--course_id', default='OSN', help='Course ID (default: OSN)')
+    parser_faculty_start.add_argument('--faculty_id', required=True, help='Faculty member identifier')
+    parser_faculty_start.add_argument('--source', choices=['pdf', 'elasticsearch', 'llm_generated'], default='elasticsearch', help='Content source type')
+    parser_faculty_start.add_argument('--file_path', help='PDF file path (for PDF source)')
+    parser_faculty_start.add_argument('--es_index', default='advanced_docs_elasticsearch_v2', help='ES index')
+    parser_faculty_start.add_argument('--raw_content', help='Raw content (for LLM generated)')
+    
+    parser_faculty_approve_course = subparsers.add_parser('faculty-approve-course', help='Faculty Approve Course Initialization')
+    parser_faculty_approve_course.add_argument('--course_id', required=True, help='Course identifier')
+    parser_faculty_approve_course.add_argument('--action', choices=['approve', 'reject'], required=True, help='Faculty action')
+    parser_faculty_approve_course.add_argument('--comments', help='Faculty comments')
+    
+    parser_faculty_approve = subparsers.add_parser('faculty-approve', help='Faculty Approve Learning Objectives')
+    parser_faculty_approve.add_argument('--course_id', required=True, help='Course identifier')
+    parser_faculty_approve.add_argument('--action', choices=['approve', 'edit', 'reject'], required=True, help='Faculty action')
+    parser_faculty_approve.add_argument('--comments', help='Faculty comments')
+    
+    parser_faculty_confirm = subparsers.add_parser('faculty-confirm', help='Faculty Confirm Course Structure')
+    parser_faculty_confirm.add_argument('--course_id', required=True, help='Course identifier')
+    parser_faculty_confirm.add_argument('--action', choices=['confirm', 'edit', 'reject'], required=True, help='Faculty action')
+    parser_faculty_confirm.add_argument('--comments', help='Faculty comments')
+    
+    parser_faculty_finalize = subparsers.add_parser('faculty-finalize', help='Faculty Finalize Knowledge Graph')
+    parser_faculty_finalize.add_argument('--course_id', required=True, help='Course identifier')
+    parser_faculty_finalize.add_argument('--action', choices=['finalize', 'edit', 'reject'], required=True, help='Faculty action')
+    parser_faculty_finalize.add_argument('--comments', help='Faculty comments')
+    
+    parser_learner_plt = subparsers.add_parser('learner-plt', help='Generate PLT for Learner (after faculty workflow)')
+    parser_learner_plt.add_argument('--course_id', required=True, help='Course identifier')
+    parser_learner_plt.add_argument('--learner_id', required=True, help='Learner identifier')
+    parser_learner_plt.add_argument('--learning_style', choices=['visual', 'auditory', 'kinesthetic'], help='Learner\'s learning style')
+    parser_learner_plt.add_argument('--experience_level', choices=['beginner', 'intermediate', 'advanced'], help='Learner\'s experience level')
+    parser_learner_plt.add_argument('--preferences', help='Additional learner preferences (JSON string)')
+    
+    parser_faculty_status = subparsers.add_parser('faculty-status', help='Check Faculty Workflow Status')
+    parser_faculty_status.add_argument('--course_id', required=True, help='Course identifier')
+    
     args = parser.parse_args()
     
-    if args.command == "stage1":
-        print("[TARGET] Running Stage 1: Research & Knowledge Component Pipeline")
+    if args.command == "content":
+        print("[CONTENT] Running Content Processing Pipeline (Research → LO → KC)")
         print("=" * 50)
+        print(f"[COURSE] Course: {args.course_id}")
+        print(f"[SOURCE] Source: {args.source}")
         
-        content = """
-        Operating Systems Course: Understand the principles of virtual memory, 
-        process scheduling, and file systems in modern operating systems.
-        """
-        messages = [HumanMessage(content=content)]
+        try:
+            # Use the content-only pipeline from automatic coordinator
+            result = run_content_only_cmd(args)
+            
+            if result and result.get("status") == "completed":
+                print("[SUCCESS] Content processing completed!")
+                print(f"[COURSE] Course: {result['course_id']}")
+                print(f"[SOURCE] Source: {result['source']}")
+                stages = result.get("stages", [])
+                print(f"[NEXT] Stages: {' -> '.join(stages)}")
+            else:
+                print(f"[ERROR] Content processing failed: {result.get('error') if result else 'Unknown error'}")
+                
+        except Exception as e:
+            print(f"[ERROR] Content processing failed: {e}")
         
-        graph = build_graph_stage_1()
-        result = graph.invoke({"messages": messages})
-        
-        print("[SUCCESS] Stage 1 completed!")
-        print(f"[STATS] Generated {len(result['messages'])} agent responses")
-        
-    elif args.command == "stage2":
-        print("[TARGET] Running Stage 2: Learning Process & Instruction Pipeline")
+    elif args.command == "learning":
+        print("[LEARNING] Running Learning Process Pipeline (LP → Instruction)")
         print("=" * 50)
+        print(f"[COURSE] Course: {args.course_id}")
+        print(f"[LEARNER] Learner: {args.learner_id}")
         
-        content = """
-        Learning Objective: Understand virtual memory concepts and implementation
-        Knowledge Components: Virtual memory mapping, page tables, memory allocation
-        """
-        messages = [HumanMessage(content=content)]
-        
-        graph = build_graph_stage_2()
-        result = graph.invoke({"messages": messages})
-        
-        print("[SUCCESS] Stage 2 completed!")
-        print(f"[STATS] Generated {len(result['messages'])} agent responses")
+        try:
+            # Use the learner-only pipeline from automatic coordinator
+            result = run_learner_only_cmd(args)
+            
+            if result and result.get("status") == "completed":
+                print("[SUCCESS] Learning process completed!")
+                print(f"[COURSE] Course: {result['course_id']}")
+                print(f"[LEARNER] Learner: {result['learner_id']}")
+                stages = result.get("stages", [])
+                print(f"[NEXT] Stages: {' -> '.join(stages)}")
+            else:
+                print(f"[ERROR] Learning process failed: {result.get('error') if result else 'Unknown error'}")
+                
+        except Exception as e:
+            print(f"[ERROR] Learning process failed: {e}")
         
     elif args.command == "plt":
         run_plt_cmd(args)
@@ -875,6 +931,27 @@ def main():
         
     elif args.command == "kg":
         run_kg_visualization(args)
+        
+    elif args.command == "faculty-start":
+        run_faculty_start_cmd(args)
+        
+    elif args.command == "faculty-approve-course":
+        run_faculty_approve_course_cmd(args)
+        
+    elif args.command == "faculty-approve":
+        run_faculty_approve_cmd(args)
+        
+    elif args.command == "faculty-confirm":
+        run_faculty_confirm_cmd(args)
+        
+    elif args.command == "faculty-finalize":
+        run_faculty_finalize_cmd(args)
+        
+    elif args.command == "learner-plt":
+        run_learner_plt_cmd(args)
+        
+    elif args.command == "faculty-status":
+        run_faculty_status_cmd(args)
         
     else:
         print(f"[ERROR] Unknown command: {args.command}")
