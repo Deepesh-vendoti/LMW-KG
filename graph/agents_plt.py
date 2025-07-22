@@ -4,7 +4,7 @@ Specialized agents for generating personalized learning paths
 """
 
 from langchain_core.runnables import RunnableLambda
-from graph.db import get_kcs_under_lo, get_best_im_for_kc_lp
+from utils.database_manager import get_knowledge_components_for_lo, get_instruction_methods_for_kc
 from graph.config import get_llm
 
 # 🤖 Shared Ollama model instance

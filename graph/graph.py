@@ -19,7 +19,7 @@ from langchain_core.messages import HumanMessage
 from langgraph.graph import StateGraph, END
 
 # ✅ Correct import of shared state schema
-from graph.state import GraphState
+from utils.unified_state_manager import UnifiedState
 
 # ✅ Agents from graph.agents
 from graph.agents import (
@@ -37,7 +37,7 @@ from graph.agents import (
 
 # ⚙️ Build Stage 1 LangGraph pipeline
 def build_graph_stage_1():
-    graph = StateGraph(GraphState)
+    graph = StateGraph(UnifiedState)
 
     graph.add_node("researcher", create_researcher_agent())
     graph.add_node("lo_generator", create_lo_generator_agent())
@@ -57,7 +57,7 @@ def build_graph_stage_1():
 
 # ⚙️ Build Stage 2 LangGraph pipeline
 def build_graph_stage_2():
-    graph = StateGraph(GraphState)
+    graph = StateGraph(UnifiedState)
 
     graph.add_node("lp_identifier", create_lp_identifier_agent())
     graph.add_node("instruction", create_instruction_agent())

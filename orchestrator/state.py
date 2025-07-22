@@ -73,6 +73,13 @@ class UniversalState(TypedDict, total=False):
     content_metadata: Dict[str, Any]
     knowledge_graph: Optional[Dict[str, Any]]
     
+    # Course Manager results
+    course_config: Optional[Dict[str, Any]]
+    course_manager_result: Optional[Dict[str, Any]]
+    faculty_inputs_collected: Optional[bool]
+    is_automatic_mode: Optional[bool]
+    next_step: Optional[str]
+    
     # Faculty approval stages
     facd: Optional[Dict[str, Any]]  # Faculty Approved Course Details
     facd_approved: bool

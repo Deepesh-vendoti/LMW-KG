@@ -1,8 +1,11 @@
 """
 Query Strategy Manager Service - Learner Subsystem
 
+🥇 ENTRY POINT: This is the FIRST service in the Learner Subsystem flow.
 Handles learner decision routing and query strategy optimization.
 Follows wrapper pattern: delegates to core logic in graph/
+
+Flow: Query Strategy Manager → Graph Query Engine → Learning Tree Handler
 """
 
 from typing import Dict, Any, Optional
@@ -13,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 class QueryStrategyManagerService:
     """
+    🥇 ENTRY POINT: First service in Learner Subsystem flow.
     Microservice for managing learner query strategies and decision routing.
     
     Responsibilities:
@@ -22,6 +26,8 @@ class QueryStrategyManagerService:
     - Manage query complexity and difficulty adaptation
     
     Architecture: Thin wrapper around graph/query_strategy.py
+    
+    Flow: Query Strategy Manager → Graph Query Engine → Learning Tree Handler
     """
     
     def __init__(self):
@@ -145,7 +151,7 @@ class QueryStrategyManagerService:
         )
 
 
-def create_query_strategy_manager_service():
+def create_query_strategy_manager_service() -> QueryStrategyManagerService:
     """Factory function to create QueryStrategyManagerService instance."""
     return QueryStrategyManagerService()
 

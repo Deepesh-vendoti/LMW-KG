@@ -61,7 +61,42 @@ class ConfigManager:
     
     def get_database_config(self, db_name: str) -> Dict[str, Any]:
         """Get database configuration for specific database"""
-        return self.get(f'databases.{db_name}', {})
+        # First try to get from database_connections.yaml (preferred)
+        db_config = self.get(f'databases.{db_name}', {})
+        
+        # If not found, try to load from database_connections.yaml file
+        if not db_config:
+            try:
+                import yaml
+                db_connections_path = Path(__file__).parent / "database_connections.yaml"
+                if db_connections_path.exists():
+                    with open(db_connections_path, 'r') as f:
+                        db_connections = yaml.safe_load(f)
+                        db_config = db_connections.get('database_connections', {}).get(db_name, {})
+            except Exception as e:
+                print(f"Warning: Could not load database_connections.yaml: {e}")
+        
+        return db_config
+    
+    def validate_configuration(self) -> Dict[str, bool]:
+        """Validate that all required configuration is present."""
+        validation_results = {}
+        
+        # Check required database configurations
+        required_databases = ['neo4j', 'elasticsearch', 'mongodb', 'redis']
+        for db_name in required_databases:
+            db_config = self.get_database_config(db_name)
+            validation_results[f'database_{db_name}'] = len(db_config) > 0
+        
+        # Check required LLM configuration
+        llm_config = self.get_llm_config()
+        validation_results['llm_config'] = len(llm_config) > 0
+        
+        # Check required microservice configuration
+        microservices_config = self.get('microservices', {})
+        validation_results['microservices_config'] = len(microservices_config) > 0
+        
+        return validation_results
     
     def get_default_course_id(self) -> str:
         """Get default course ID"""

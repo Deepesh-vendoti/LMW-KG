@@ -105,6 +105,12 @@ class UniversalOrchestrator:
         print(f"🔍 Initial state keys: {list(state.keys())}")
         print(f"🔍 learner_context: {state.get('learner_context')}")
         print(f"🔍 learner_id: {state.get('learner_id')}")
+        print(f"🔍 workflow_type: {state.get('workflow_type')}")
+        
+        # Save workflow_type if present in execution_context or directly in state
+        workflow_type = state.get("workflow_type")
+        if not workflow_type and "execution_context" in state and isinstance(state["execution_context"], dict):
+            workflow_type = state["execution_context"].get("workflow_type")
         
         # Generate session ID if not provided
         if not state.get("session_id"):
@@ -125,9 +131,25 @@ class UniversalOrchestrator:
         state["validation_errors"] = []
         state["cross_system_compatibility"] = True
         
+        # CRITICAL: Always ensure workflow_type is present
+        if workflow_type:
+            state["workflow_type"] = workflow_type
+            print(f"🔍 Restored workflow_type: {workflow_type}")
+        else:
+            # Default workflow type based on subsystem
+            if state.get("subsystem") == SubsystemType.CONTENT:
+                state["workflow_type"] = "content_processing"
+                print(f"🔍 Set default workflow_type for content: content_processing")
+            elif state.get("subsystem") == SubsystemType.LEARNER:
+                state["workflow_type"] = "learner_workflow"
+                print(f"🔍 Set default workflow_type for learner: learner_workflow")
+            else:
+                print(f"⚠️ No workflow_type found in state")
+        
         # Debug: Check final state
         print(f"🔍 Final state keys: {list(state.keys())}")
         print(f"🔍 learner_context after init: {state.get('learner_context')}")
+        print(f"🔍 workflow_type after init: {state.get('workflow_type')}")
         
         # Log initialization
         self._add_execution_log(state, "session_initialized", {
@@ -141,6 +163,12 @@ class UniversalOrchestrator:
     def _route_subsystem(self, state: UniversalState) -> UniversalState:
         """Route execution to appropriate subsystem."""
         print("🔀 [Universal Orchestrator] Routing subsystem...")
+        
+        # Debug: Check what fields are in state at routing
+        print(f"🔍 Routing - State keys: {list(state.keys())}")
+        print(f"🔍 course_config in routing: {'course_config' in state}")
+        print(f"🔍 course_manager_result in routing: {'course_manager_result' in state}")
+        print(f"🔍 faculty_inputs_collected in routing: {state.get('faculty_inputs_collected')}")
         
         # Determine target subsystem
         target_subsystem = state.get("subsystem")
@@ -233,31 +261,104 @@ class UniversalOrchestrator:
     
     def _execute_content_subsystem(self, state: UniversalState) -> UniversalState:
         """Execute content subsystem services."""
+        print("\n\n🧠 ORCHESTRATING SUBSYSTEM: CONTENT\n" + "=" * 50)
         print("📚 [Content Subsystem] Executing...")
         
-        # Get executable content services
-        executable_services = self.registry.get_executable_services(state, SubsystemType.CONTENT)
+        # Check workflow type to determine which services to execute
+        workflow_type = state.get("workflow_type", "full_pipeline")
+        print(f"🔍 Content Subsystem - workflow_type: {workflow_type}")
+        print(f"🔍 Content Subsystem - state keys: {list(state.keys())}")
         
-        if not executable_services:
-            print("⚠️ No executable content services found")
-            return state
+        if workflow_type == "course_initialization":
+            # For course initialization, only run course_manager (Course Manager)
+            target_service = "course_manager"
+            executable_services = self.registry.get_executable_services(state, SubsystemType.CONTENT)
+            
+            if target_service in executable_services:
+                print(f"🎯 Course Initialization: Executing {target_service} only")
+                result = self._execute_service(target_service, state)
+                
+                # Update state with result
+                state["service_results"][target_service] = result
+                state["service_statuses"][target_service] = ServiceStatus.COMPLETED
+                
+                self._add_execution_log(state, "course_initialization_completed", {
+                    "service_id": target_service,
+                    "workflow_type": workflow_type
+                })
+                
+                print(f"✅ Course initialization completed: {target_service}")
+                return state
+            else:
+                print(f"⚠️ Course initialization service {target_service} not executable")
+                print(f"🔍 Available services: {executable_services}")
+                return state
         
-        # Execute first available service (in real implementation, this would be more sophisticated)
-        service_id = executable_services[0]
-        result = self._execute_service(service_id, state)
-        
-        # Note: Service execution updates state internally, so we don't override here
-        
-        self._add_execution_log(state, "content_service_executed", {
-            "service_id": service_id,
-            "result_keys": list(result.keys()) if isinstance(result, dict) else "non_dict_result"
-        })
-        
-        print(f"✅ Content service completed: {service_id}")
-        return state
+        else:
+            # Full pipeline: execute all executable services
+            executable_services = self.registry.get_executable_services(state, SubsystemType.CONTENT)
+            
+            if not executable_services:
+                print("⚠️ No executable content services found")
+                return state
+            
+            # Execute services in logical order for full pipeline
+            service_execution_order = ["course_manager", "content_preprocessor", "course_mapper", "kli_application", "knowledge_graph_generator"]
+            
+            executed_count = 0
+            for service_id in service_execution_order:
+                if service_id in executable_services:
+                    print(f"🔄 Executing {service_id}...")
+                    result = self._execute_service(service_id, state)
+                    
+                    # Update state with result
+                    state["service_results"][service_id] = result
+                    state["service_statuses"][service_id] = ServiceStatus.COMPLETED
+                    
+                    # Merge service result fields back into main state
+                    if isinstance(result, dict):
+                        merged_fields = []
+                        for key, value in result.items():
+                            # Skip internal orchestrator fields and service management fields
+                            if key not in ["error", "result", "session_id", "service_statuses", "service_results", "service_errors", "execution_history", "state_validated", "validation_errors", "cross_system_compatibility", "subsystem", "execution_context"]:
+                                state[key] = value
+                                merged_fields.append(key)
+                        
+                        if merged_fields:
+                            print(f"🔧 Merged fields from {service_id}: {', '.join(merged_fields)}")
+                    
+                    self._add_execution_log(state, "content_service_executed", {
+                        "service_id": service_id,
+                        "execution_order": executed_count + 1
+                    })
+                    
+                    print(f"✅ {service_id} completed")
+                    executed_count += 1
+                    
+                    # Re-check for newly executable services after each execution
+                    executable_services = self.registry.get_executable_services(state, SubsystemType.CONTENT)
+                else:
+                    print(f"⏭️ Skipping {service_id} - not executable")
+            
+            print(f"✅ Content subsystem completed: {executed_count} services executed")
+            
+            # Debug: Check what fields are in state after content execution
+            print(f"🔍 Content execution completed. State keys: {list(state.keys())}")
+            print(f"🔍 course_config in state: {'course_config' in state}")
+            print(f"🔍 course_manager_result in state: {'course_manager_result' in state}")
+            print(f"🔍 faculty_inputs_collected in state: {state.get('faculty_inputs_collected')}")
+            
+            # Ensure state modifications are preserved by creating a new state dict
+            # This helps LangGraph properly track state changes
+            final_state = UniversalState(state)
+            print(f"🔧 Returning state with {len(final_state)} keys")
+            print(f"🔧 Final state keys: {list(final_state.keys())}")
+            
+            return final_state
     
     def _execute_learner_subsystem(self, state: UniversalState) -> UniversalState:
         """Execute learner subsystem services."""
+        print("\n\n🧠 ORCHESTRATING SUBSYSTEM: LEARNER\n" + "=" * 50)
         print("👤 [Learner Subsystem] Executing...")
         
         # Get executable learner services
@@ -280,6 +381,18 @@ class UniversalOrchestrator:
                 state["service_results"][service_id] = result
                 state["service_statuses"][service_id] = ServiceStatus.COMPLETED
                 
+                # Merge service result fields back into main state
+                if isinstance(result, dict):
+                    merged_fields = []
+                    for key, value in result.items():
+                        # Skip internal orchestrator fields and service management fields
+                        if key not in ["error", "result", "session_id", "service_statuses", "service_results", "service_errors", "execution_history", "state_validated", "validation_errors", "cross_system_compatibility", "subsystem", "execution_context"]:
+                            state[key] = value
+                            merged_fields.append(key)
+                    
+                    if merged_fields:
+                        print(f"🔧 Merged fields from {service_id}: {', '.join(merged_fields)}")
+                
                 self._add_execution_log(state, "learner_service_executed", {
                     "service_id": service_id,
                     "learner_id": state.get("learner_id"),
@@ -295,10 +408,14 @@ class UniversalOrchestrator:
                 print(f"⏭️ Skipping {service_id} - not executable")
         
         print(f"✅ Learner subsystem completed: {executed_count} services executed")
-        return state
+        
+        # Ensure state modifications are preserved
+        final_state = dict(state)
+        return final_state
     
     def _execute_sme_subsystem(self, state: UniversalState) -> UniversalState:
         """Execute SME subsystem services."""
+        print("\n\n🧠 ORCHESTRATING SUBSYSTEM: SME\n" + "=" * 50)
         print("👨‍🏫 [SME Subsystem] Executing...")
         
         # Get executable SME services
@@ -326,6 +443,7 @@ class UniversalOrchestrator:
     
     def _execute_analytics_subsystem(self, state: UniversalState) -> UniversalState:
         """Execute analytics subsystem services."""
+        print("\n\n🧠 ORCHESTRATING SUBSYSTEM: ANALYTICS\n" + "=" * 50)
         print("📊 [Analytics Subsystem] Executing...")
         
         # Get executable analytics services
@@ -391,6 +509,12 @@ class UniversalOrchestrator:
         """Finalize orchestration session."""
         print("🏁 [Universal Orchestrator] Finalizing session...")
         
+        # Debug: Check what fields are in state at finalization
+        print(f"🔍 Finalization - State keys: {list(state.keys())}")
+        print(f"🔍 course_config in finalization: {'course_config' in state}")
+        print(f"🔍 course_manager_result in finalization: {'course_manager_result' in state}")
+        print(f"🔍 faculty_inputs_collected in finalization: {state.get('faculty_inputs_collected')}")
+        
         # Generate session summary
         completed_services = [
             service_id for service_id, status in state.get("service_statuses", {}).items()
@@ -428,7 +552,24 @@ class UniversalOrchestrator:
             # Execute service callable
             if hasattr(service.callable, '__call__'):
                 result = service.callable(state)
-                return result if isinstance(result, dict) else {"result": result}
+                
+                # Handle different return types
+                if isinstance(result, dict):
+                    # If it's a dict, it might be the updated state or a result dict
+                    # Check if it contains state-like keys
+                    if any(key in result for key in ['session_id', 'service_statuses', 'course_id', 'learner_id']):
+                        # This is likely the updated state - extract the new fields
+                        new_fields = {}
+                        for key, value in result.items():
+                            if key not in ['session_id', 'service_statuses', 'service_results', 'service_errors', 'execution_history']:
+                                new_fields[key] = value
+                        return new_fields
+                    else:
+                        # This is a result dict
+                        return result
+                else:
+                    # Non-dict result
+                    return {"result": result}
             else:
                 return {"error": f"Service {service_id} is not callable"}
                 
@@ -468,6 +609,11 @@ class UniversalOrchestrator:
         if not self.graph:
             raise RuntimeError("Orchestrator graph not built")
         
+        start_time = time.time()
+        session_id = initial_state.get("session_id", "unknown")
+        course_id = initial_state.get("course_id", "unknown")
+        workflow_type = initial_state.get("workflow_type", "unknown")
+        
         print("🌍 [Universal Orchestrator] Starting cross-subsystem orchestration...")
         print("=" * 80)
         
@@ -480,6 +626,11 @@ class UniversalOrchestrator:
             # LangGraph expects a dictionary, not a custom object
             state_dict = dict(initial_state)
             
+            # CRITICAL: Ensure workflow_type is preserved
+            if "workflow_type" in initial_state:
+                print(f"🔍 Preserving workflow_type in state_dict: {initial_state['workflow_type']}")
+                state_dict["workflow_type"] = initial_state["workflow_type"]
+            
             # Get recursion limit from config
             recursion_limit = self.langgraph_config.get("recursion_limit", 100)
             
@@ -488,8 +639,26 @@ class UniversalOrchestrator:
                 config={"recursion_limit": recursion_limit}
             )
             
+            # Generate a dynamic session summary
+            execution_time = time.time() - start_time
+            completed_services = [svc for svc, status in result.get("service_statuses", {}).items() 
+                                if status == "completed"]
+            error_services = [svc for svc, status in result.get("service_statuses", {}).items() 
+                            if status == "error"]
+            
             print("=" * 80)
             print("🎉 [Universal Orchestrator] Cross-subsystem orchestration completed!")
+            print(f"📊 Session Summary:")
+            print(f"   Session ID: {result.get('session_id', session_id)}")
+            print(f"   Course ID: {result.get('course_id', course_id)}")
+            print(f"   Workflow Type: {result.get('workflow_type', workflow_type)}")
+            print(f"   Execution Time: {execution_time:.2f} seconds")
+            print(f"   Services Completed: {len(completed_services)}")
+            print(f"   Services With Errors: {len(error_services)}")
+            if error_services:
+                print(f"   Error Services: {', '.join(error_services)}")
+            print("=" * 80)
+            
             return result
             
         except Exception as e:
@@ -511,7 +680,11 @@ def run_cross_subsystem_workflow(
     """Run a cross-subsystem workflow."""
     
     # Register all services first
-    from orchestrator.main import register_all_services
+    # Import register_all_services from main.py since orchestrator/main.py was removed
+    import sys
+    from pathlib import Path
+    sys.path.append(str(Path(__file__).parent.parent))
+    from main import register_all_services
     register_all_services()
     
     orchestrator = create_universal_orchestrator()
@@ -528,8 +701,16 @@ def run_cross_subsystem_workflow(
     if subsystem == SubsystemType.CONTENT:
         initial_state.update({
             "course_id": kwargs.get("course_id", "default_course"),
-            "upload_type": kwargs.get("upload_type", "elasticsearch")
+            "upload_type": kwargs.get("upload_type", "elasticsearch"),
+            "faculty_id": kwargs.get("faculty_id", "auto_faculty")  # Use auto_faculty for automatic mode
         })
+        
+        # Add workflow type for content subsystem
+        if kwargs.get("workflow_type"):
+            initial_state["workflow_type"] = kwargs["workflow_type"]
+            print(f"🔍 Added workflow_type to initial state: {kwargs['workflow_type']}")
+        else:
+            print(f"⚠️ No workflow_type provided in kwargs")
         
         # Add content-specific parameters
         if kwargs.get("file_path"):

@@ -91,7 +91,7 @@ class CourseMappingService:
         try:
             # Import existing Stage 1 graph
             from graph.graph import build_graph_stage_1
-            from graph.state import GraphState
+            from utils.unified_state_manager import UnifiedState
             
             print("🔄 Using existing Stage 1 LangGraph pipeline...")
             
@@ -100,7 +100,7 @@ class CourseMappingService:
             
             # Prepare input for existing agents
             content_text = "\n".join([chunk.get("content", "") for chunk in chunks])
-            initial_state = GraphState(
+            initial_state = UnifiedState(
                 messages=[HumanMessage(content=content_text)]
             )
             

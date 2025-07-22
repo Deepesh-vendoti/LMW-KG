@@ -97,7 +97,8 @@ class DatabaseConnectionManager:
         
         # Handle "none" authentication consistently
         if auth_config == "none" or auth_config is None:
-            auth = None
+            # For Neo4j with no auth, we need to use empty tuple
+            auth = ("", "")
         else:
             auth = auth_config
         

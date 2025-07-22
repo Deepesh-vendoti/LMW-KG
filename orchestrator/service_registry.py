@@ -42,10 +42,19 @@ class ServiceRegistry:
         """Register an individual service."""
         self.services[service.service_id] = service
         
-        # Add to subsystem if it exists
-        if subsystem_type in self.subsystems:
-            if service not in self.subsystems[subsystem_type].services:
-                self.subsystems[subsystem_type].services.append(service)
+        # Create subsystem if it doesn't exist
+        if subsystem_type not in self.subsystems:
+            self.subsystems[subsystem_type] = SubsystemDefinition(
+                subsystem_type=subsystem_type,
+                name=f"{subsystem_type.value.title()} Subsystem",
+                description=f"Services for {subsystem_type.value} subsystem",
+                services=[],
+                entry_points=[]
+            )
+        
+        # Add to subsystem if not already present
+        if service not in self.subsystems[subsystem_type].services:
+            self.subsystems[subsystem_type].services.append(service)
         
         print(f"🔧 Registered service: {service.service_id} ({subsystem_type.value})")
     
@@ -231,5 +240,97 @@ def create_cross_subsystem_request(
         target_subsystem=target,
         service_id=service_id,
         payload=payload,
-        context=context or {}
-    ) 
+        context=context or {},
+        timestamp=time.time()
+    )
+
+def register_all_services():
+    """Register all available services across subsystems."""
+    registry = get_service_registry()
+    
+    # Check if services are already registered to avoid duplicates
+    if len(registry.services) > 0:
+        print("[INFO] Services already registered, skipping registration")
+        return registry
+    
+    # Clear any existing services to ensure clean registration
+    registry.services.clear()
+    registry.subsystems.clear()
+    
+    print("[SYSTEM] Registering services across all subsystems...")
+    
+    # ===== CONTENT SUBSYSTEM =====
+    print("[CONTENT] Registering Content Subsystem services...")
+    
+    # Content Subsystem Services
+    content_services = [
+        ("course_manager", "subsystems.content.services.course_manager", "create_course_manager_service"),
+        ("content_preprocessor", "subsystems.content.services.content_preprocessor", "create_content_preprocessor_service"),
+        ("course_mapper", "subsystems.content.services.course_mapper", "create_course_mapper_service"),
+        ("kli_application", "subsystems.content.services.kli_application", "create_kli_application_service"),
+        ("knowledge_graph_generator", "subsystems.content.services.knowledge_graph_generator", "create_knowledge_graph_generator_service")
+    ]
+    
+    for service_name, module_path, factory_name in content_services:
+        try:
+            module = __import__(module_path, fromlist=[factory_name])
+            factory = getattr(module, factory_name)
+            service = factory()
+            registry.register_service(service.get_service_definition(), SubsystemType.CONTENT)
+        except (ImportError, AttributeError) as e:
+            print(f"[WARNING] Could not register {service_name}: {e}")
+    
+    # Register content subsystem definition
+    content_services = [s for s in registry.services.values() if s.subsystem == SubsystemType.CONTENT]
+    if content_services:
+        content_subsystem = SubsystemDefinition(
+            subsystem_type=SubsystemType.CONTENT,
+            name="Content Subsystem",
+            description="Handles course content processing and knowledge graph generation",
+            services=content_services,
+            entry_points=["course_manager"]
+        )
+        registry.register_subsystem(content_subsystem)
+    
+    # ===== LEARNER SUBSYSTEM =====
+    print("[LEARNER] Registering Learner Subsystem services...")
+    
+    # Learner Subsystem Services (in correct execution order)
+    learner_services = [
+        ("query_strategy_manager", "subsystems.learner.services.query_strategy_manager", "create_query_strategy_manager_service"),
+        ("graph_query_engine", "subsystems.learner.services.graph_query_engine", "create_graph_query_engine_service"),
+        ("learning_tree_handler", "subsystems.learner.services.learning_tree_handler", "create_learning_tree_handler_service")
+    ]
+    
+    for service_name, module_path, factory_name in learner_services:
+        try:
+            module = __import__(module_path, fromlist=[factory_name])
+            factory = getattr(module, factory_name)
+            service = factory()
+            registry.register_service(service.get_service_definition(), SubsystemType.LEARNER)
+        except (ImportError, AttributeError) as e:
+            print(f"[WARNING] Could not register {service_name}: {e}") 
+    
+    # Register learner subsystem definition
+    learner_services = [s for s in registry.services.values() if s.subsystem == SubsystemType.LEARNER]
+    if learner_services:
+        learner_subsystem = SubsystemDefinition(
+            subsystem_type=SubsystemType.LEARNER,
+            name="Learner Subsystem", 
+            description="Handles learner personalization and learning path generation",
+            services=learner_services,
+            entry_points=["query_strategy_manager"]
+        )
+        registry.register_subsystem(learner_subsystem)
+    
+    # ===== SME SUBSYSTEM =====
+    print("[SME] Registering SME Subsystem services...")
+    # SME services would be registered here when implemented
+    
+    # ===== ANALYTICS SUBSYSTEM =====
+    print("[ANALYTICS] Registering Analytics Subsystem services...")
+    # Analytics services would be registered here when implemented
+    
+    print(f"[SUCCESS] Service registration completed: {len(registry.services)} services registered")
+    
+    return registry 

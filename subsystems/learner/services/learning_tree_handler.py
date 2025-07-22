@@ -1,8 +1,11 @@
 """
 Learning Tree Handler Service - Learner Subsystem
 
+🥉 THIRD: This is the THIRD service in the Learner Subsystem flow.
 Handles personalized learning tree (PLT) generation and storage.
 Integrates with existing PLT generation agents and Neo4j storage.
+
+Flow: Query Strategy Manager → Graph Query Engine → Learning Tree Handler
 """
 
 from typing import Dict, Any, List, Optional
@@ -187,8 +190,9 @@ class LearningTreeHandlerService:
             
             # Store in Neo4j using existing function
             try:
-                from graph.db import insert_plt_to_neo4j
-                insert_plt_to_neo4j(plt_data, clear_existing=False)
+                from utils.database_connections import get_database_manager
+                db_manager = get_database_manager()
+                db_manager.insert_learning_tree(plt_data, learner_id, course_id)
                 storage_results["neo4j"] = "success"
             except Exception as e:
                 storage_results["neo4j"] = f"error: {e}"

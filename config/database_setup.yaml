@@ -1,4 +1,10 @@
 # Database Configuration for LangGraph KG System
+# DEPRECATED: This file is deprecated. Use database_connections.yaml instead.
+# This file is kept for backward compatibility only.
+
+# Please use config/database_connections.yaml for all database configuration.
+# The database_connections.yaml file contains the complete and up-to-date
+# configuration for all database connections in the system.
 
 databases:
   neo4j:

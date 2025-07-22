@@ -25,18 +25,22 @@ from utils.logging import get_orchestrator_logger
 class FacultyWorkflowStage(str, Enum):
     """Faculty workflow stages in sequence."""
     
-    # Initial content processing (no faculty input needed)
+    # Stage 0: Course Initialization (requires faculty approval)
+    AWAITING_COURSE_APPROVAL = "awaiting_course_approval"
+    COURSE_APPROVED = "course_approved"  # Course initialized
+    
+    # Stage 1: Content Processing (automatic)
     CONTENT_PROCESSING = "content_processing"
     
-    # Stage 1: Learning Objectives Review
+    # Stage 2: Learning Objectives Review
     AWAITING_LO_APPROVAL = "awaiting_lo_approval"
     LO_APPROVED = "lo_approved"  # FACD generated
     
-    # Stage 2: Course Structure Review  
+    # Stage 3: Course Structure Review  
     AWAITING_STRUCTURE_CONFIRMATION = "awaiting_structure_confirmation"
     STRUCTURE_CONFIRMED = "structure_confirmed"  # FCCS generated
     
-    # Stage 3: Knowledge Graph Review
+    # Stage 4: Knowledge Graph Review
     AWAITING_KG_FINALIZATION = "awaiting_kg_finalization" 
     KG_FINALIZED = "kg_finalized"  # FFCS generated
     
@@ -75,10 +79,12 @@ class FacultyApprovalState:
         self.logger = get_orchestrator_logger("faculty_approval")
         
         # Workflow state
-        self.current_stage = FacultyWorkflowStage.CONTENT_PROCESSING
+        self.current_stage = FacultyWorkflowStage.AWAITING_COURSE_APPROVAL
         self.approval_history: List[Dict[str, Any]] = []
         
         # Stage-specific data
+        self.course_initialization: Dict[str, Any] = {}  # Course Manager result
+        
         self.draft_los: List[Dict[str, Any]] = []
         self.facd: Dict[str, Any] = {}  # Faculty Approved Course Details
         
@@ -96,6 +102,69 @@ class FacultyApprovalState:
                         course_id=course_id,
                         faculty_id=self.faculty_id,
                         stage=self.current_stage)
+    
+    def set_course_initialization(self, course_init_result: Dict[str, Any]) -> None:
+        """
+        Set course initialization result and move to course approval stage.
+        
+        Args:
+            course_init_result: Course Manager initialization result
+        """
+        self.course_initialization = course_init_result
+        self.current_stage = FacultyWorkflowStage.AWAITING_COURSE_APPROVAL
+        self.last_updated = datetime.now()
+        
+        # Save to persistent storage
+        approval_state_manager.save_workflow(self.course_id)
+        
+        self.logger.info("Course initialization set, awaiting faculty approval",
+                        course_id=self.course_id,
+                        stage=self.current_stage)
+    
+    def faculty_approve_course_initialization(self,
+                                            action: FacultyAction,
+                                            faculty_comments: str = "") -> Dict[str, Any]:
+        """
+        Process faculty approval of course initialization.
+        
+        Args:
+            action: Faculty action (APPROVE, REJECT)
+            faculty_comments: Optional faculty feedback
+            
+        Returns:
+            Result of approval action
+        """
+        if self.current_stage != FacultyWorkflowStage.AWAITING_COURSE_APPROVAL:
+            raise ValueError(f"Invalid stage for course approval: {self.current_stage}")
+        
+        approval_record = {
+            "stage": "course_initialization",
+            "action": action,
+            "timestamp": datetime.now(),
+            "faculty_id": self.faculty_id,
+            "comments": faculty_comments,
+            "course_init_result": self.course_initialization
+        }
+        
+        if action == FacultyAction.APPROVE:
+            self.current_stage = FacultyWorkflowStage.COURSE_APPROVED
+            approval_record["result"] = "course_approved"
+            
+            self.logger.info("Faculty approved course initialization",
+                           course_id=self.course_id,
+                           faculty_id=self.faculty_id)
+            
+        elif action == FacultyAction.REJECT:
+            approval_record["result"] = "rejected"
+            # Stay in AWAITING_COURSE_APPROVAL stage
+            
+        self.approval_history.append(approval_record)
+        self.last_updated = datetime.now()
+        
+        # Save to persistent storage
+        approval_state_manager.save_workflow(self.course_id)
+        
+        return approval_record
     
     def set_draft_learning_objectives(self, draft_los: List[Dict[str, Any]]) -> None:
         """

@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS kg_metadata (
     kg_id SERIAL PRIMARY KEY,
     course_id VARCHAR(50),
     version INTEGER,
+    status VARCHAR(50),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     neo4j_nodes_count INTEGER,
     neo4j_relationships_count INTEGER,

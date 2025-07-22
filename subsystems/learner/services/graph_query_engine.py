@@ -1,8 +1,11 @@
 """
 Graph Query Engine Service - Learner Subsystem
 
+🥈 SECOND: This is the SECOND service in the Learner Subsystem flow.
 Wrapper for existing Neo4j query functionality in graph/db.py.
 Provides Cypher query generation and execution for learner queries.
+
+Flow: Query Strategy Manager → Graph Query Engine → Learning Tree Handler
 """
 
 from typing import Dict, Any, List, Optional

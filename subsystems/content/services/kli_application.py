@@ -93,7 +93,7 @@ class KLIApplicationService:
         try:
             # Import existing Stage 2 graph
             from graph.graph import build_graph_stage_2
-            from graph.state import GraphState
+            from utils.unified_state_manager import UnifiedState
             
             print("🔄 Using existing Stage 2 LangGraph pipeline...")
             
@@ -102,7 +102,7 @@ class KLIApplicationService:
             
             # Prepare input for existing agents
             facd_text = self._facd_to_text(facd)
-            initial_state = GraphState(
+            initial_state = UnifiedState(
                 messages=[HumanMessage(content=facd_text)]
             )
             

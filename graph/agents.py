@@ -7,7 +7,7 @@ Uses shared OllamaLLM model (qwen3:4b)
 import os
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.runnables import RunnableLambda
-from graph.state import GraphState  # ✅ safe import
+from utils.unified_state_manager import UnifiedState  # ✅ safe import
 from graph.config import get_llm, get_llm_gateway
 from utils.llm_gateway import TaskType
 
@@ -39,10 +39,10 @@ llm = get_llm()
 # -------------------------------
 def create_researcher_agent():
     prompt = load_prompt("researcher.txt")
-    def researcher(state: GraphState) -> GraphState:
+    def researcher(state: UnifiedState) -> UnifiedState:
         print("🔍 [Researcher Agent] Executing...")
-        if state.messages:
-            query = state.messages[-1].content
+        if state.get("messages"):
+            query = state["messages"][-1].content
             
             # Use LLM Gateway for knowledge extraction with cost optimization
             try:
@@ -70,7 +70,9 @@ def create_researcher_agent():
                 response = llm.invoke(prompt + query)
                 content = response
             
-            state.messages.append(AIMessage(content=content))
+            if "messages" not in state:
+                state["messages"] = []
+            state["messages"].append(AIMessage(content=content))
         return state
     return RunnableLambda(researcher)
 
@@ -80,10 +82,10 @@ def create_researcher_agent():
 # -------------------------------
 def create_lo_generator_agent():
     prompt = load_prompt("lo_generator.txt")
-    def lo_generator(state: GraphState) -> GraphState:
+    def lo_generator(state: UnifiedState) -> UnifiedState:
         print("📝 [LO Generator Agent] Executing...")
-        if state.messages:
-            query = state.messages[-1].content
+        if state.get("messages"):
+            query = state["messages"][-1].content
             
             # Use LLM Gateway for learning objective generation
             try:
@@ -111,7 +113,9 @@ def create_lo_generator_agent():
                 response = llm.invoke(prompt + query)
                 content = response
             
-            state.messages.append(AIMessage(content=content))
+            if "messages" not in state:
+                state["messages"] = []
+            state["messages"].append(AIMessage(content=content))
         return state
     return RunnableLambda(lo_generator)
 
@@ -121,12 +125,14 @@ def create_lo_generator_agent():
 # -------------------------------
 def create_curator_agent():
     prompt = load_prompt("curator.txt")
-    def curator(state: GraphState) -> GraphState:
+    def curator(state: UnifiedState) -> UnifiedState:
         print("📦 [Curator Agent] Executing...")
-        if state.messages:
-            query = state.messages[-1].content
+        if state.get("messages"):
+            query = state["messages"][-1].content
             response = llm.invoke(prompt + query)
-            state.messages.append(AIMessage(content=response))
+            if "messages" not in state:
+                state["messages"] = []
+            state["messages"].append(AIMessage(content=response))
         return state
     return RunnableLambda(curator)
 
@@ -136,12 +142,14 @@ def create_curator_agent():
 # -------------------------------
 def create_analyst_agent():
     prompt = load_prompt("analyst.txt")
-    def analyst(state: GraphState) -> GraphState:
+    def analyst(state: UnifiedState) -> UnifiedState:
         print("📈 [Analyst Agent] Executing...")
-        if state.messages:
-            query = state.messages[-1].content
+        if state.get("messages"):
+            query = state["messages"][-1].content
             response = llm.invoke(prompt + query)
-            state.messages.append(AIMessage(content=response))
+            if "messages" not in state:
+                state["messages"] = []
+            state["messages"].append(AIMessage(content=response))
         return state
     return RunnableLambda(analyst)
 
@@ -151,12 +159,14 @@ def create_analyst_agent():
 # -------------------------------
 def create_kc_classifier_agent():
     prompt = load_prompt("kc_classifier.txt")
-    def kc_classifier(state: GraphState) -> GraphState:
+    def kc_classifier(state: UnifiedState) -> UnifiedState:
         print("🔢 [KC Classifier Agent] Executing...")
-        if state.messages:
-            query = state.messages[-1].content
+        if state.get("messages"):
+            query = state["messages"][-1].content
             response = llm.invoke(prompt + query)
-            state.messages.append(AIMessage(content=response))
+            if "messages" not in state:
+                state["messages"] = []
+            state["messages"].append(AIMessage(content=response))
         return state
     return RunnableLambda(kc_classifier)
 
@@ -166,12 +176,14 @@ def create_kc_classifier_agent():
 # -------------------------------
 def create_lp_identifier_agent():
     prompt = load_prompt("lp_identifier.txt")
-    def lp_identifier(state: GraphState) -> GraphState:
+    def lp_identifier(state: UnifiedState) -> UnifiedState:
         print("🧭 [Learning Process Identifier Agent] Executing...")
-        if state.messages:
-            query = state.messages[-1].content
+        if state.get("messages"):
+            query = state["messages"][-1].content
             response = llm.invoke(prompt + query)
-            state.messages.append(AIMessage(content=response))
+            if "messages" not in state:
+                state["messages"] = []
+            state["messages"].append(AIMessage(content=response))
         return state
     return RunnableLambda(lp_identifier)
 
@@ -181,10 +193,10 @@ def create_lp_identifier_agent():
 # -------------------------------
 def create_instruction_agent():
     prompt = load_prompt("instruction_agent.txt")
-    def instruction_agent(state: GraphState) -> GraphState:
+    def instruction_agent(state: UnifiedState) -> UnifiedState:
         print("🎯 [Instruction Strategy Agent] Executing...")
-        if state.messages:
-            query = state.messages[-1].content
+        if state.get("messages"):
+            query = state["messages"][-1].content
             
             # Use LLM Gateway for instruction method selection
             try:
@@ -212,6 +224,8 @@ def create_instruction_agent():
                 response = llm.invoke(prompt + query)
                 content = response
             
-            state.messages.append(AIMessage(content=content))
+            if "messages" not in state:
+                state["messages"] = []
+            state["messages"].append(AIMessage(content=content))
         return state
     return RunnableLambda(instruction_agent)
